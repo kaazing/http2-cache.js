@@ -35,10 +35,9 @@ describe('http2', function() {
     describe('push', function() {
 
         it('should work between client and server', function(done) {
-            this.timeout(5000);
+            var pushResponse =
 
             http2.createServer(options, function(req, res) {
-                console.log("there is a request?? " + req.httpVersion);
                 var stream = res.push('/main.js', {
                     status: 200, // optional
                     method: 'GET', // optional
@@ -46,7 +45,8 @@ describe('http2', function() {
                         accept: '*/*'
                     },
                     response: {
-                        'content-type': 'application/javascript'
+                        'content-type': 'application/javascript',
+                        'push-header': 'push-header-value'
                     }
                 });
                 stream.on('error', function() {
@@ -54,20 +54,14 @@ describe('http2', function() {
                 });
                 stream.end('alert("hello from push stream!");');
 
+                res.setHeader("dpw-response-header2", 'value2');
                 res.end('<script src="/main.js"></script>');
                 console.log("there should be a push in flight");
             }).listen(3000);
 
             var agent = http2.createAgent({
                 host: 'localhost',
-                port: 3000,
-
-                // Optional SPDY options
-                spdy: {
-                    plain: false,
-                    ssl: true,
-
-                }
+                port: 3000
             });
 
             var clientReq = https.get({
@@ -83,13 +77,62 @@ describe('http2', function() {
                 // agent.close();
             });
 
+            var clientReq2 = https.get({
+                host: 'localhost',
+                agent: agent
+            }, function(response) {
+                // console.log("there is a response ================================= !!");
+                //console.log(" dpw " + response.headers.toString());
+                // console.log(response);
+                // console.log(" ================================= !!");
+                // Here it goes like with any other node.js HTTP request
+                // ...
+                // And once we're done - we may close TCP connection to server
+                // NOTE: All non-closed requests will die!
+                // agent.close();
+            });
+            var cnt = 1;
 
             clientReq.on('push', function(stream) {
                 console.log("there is a push??");
                 stream.on('error', function(err) {
                     // Handle error
                 });
-                done();
+                cnt++;
+                if(cnt == 2){
+                    done();
+                }
+            });
+            clientReq2.on('push', function(stream) {
+                console.log("there is a push??");
+                console.log(
+                    "DPW - PUSH REQUEST \n"
+                    + stream.method + "\n"
+                    + stream.headers + "\n"
+                );
+                stream.on('error', function(err) {
+                    // Handle error
+                });
+                stream.on('response', function(status, headers) {
+                    console.log("PEACH GOT HEADERS!!!!");
+                   console.log("PEACH: " + headers["push-header"]);
+                });
+                stream.on('headers', function(status, headers) {
+                    console.log("PEACH GOT HEADERS!!!!");
+                   console.log("PEACH2: " + headers);
+                });
+                stream.on('data', function(chunk) {
+                    console.log('got %d bytes of data' + chunk, chunk.length);
+                    console.log(
+                        "DPW - PUSH RESPONSE \n"
+                        + stream.method + "\n"
+                        + stream.headers + "\n"
+                    );
+                });
+                cnt++;
+                if(cnt == 2){
+                    done();
+                }
             });
         });
     });
