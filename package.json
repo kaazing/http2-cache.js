@@ -26,6 +26,7 @@
   "devDependencies": {
     "xhr2": "0.1.4",
     "spdy": "3.4.4 ",
+    "sinon": "1.17.7",
     "mocha":  "3.2.0"
   }
 }
