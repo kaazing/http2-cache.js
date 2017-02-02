@@ -45,13 +45,6 @@ describe('XMLHttpRequestProxy', function () {
             )
         });
 
-        it('with no arrays throws exception', function () {
-            assert.throws(function () {
-                    new XMLHttpRequestProxy.prototype.proxy("https://url");
-                }
-            )
-        });
-
         it('should load config', function () {
             var xhrp = new XMLHttpRequestProxy();
             xhrp.proxy(["https://configuration"]);
@@ -74,6 +67,52 @@ describe('XMLHttpRequestProxy', function () {
             this.requests[0].respond(200, {'Content-Type': 'application/json'}, JSON.stringify(validConfig1));
             this.requests[1].respond(200, {'Content-Type': 'application/json'}, JSON.stringify(validConfig2));
         });
+
+        it.skip('overrides window.XMLHttpRequest', function () {
+
+        });
+    });
+
+    describe.skip('._add()', function () {
+
+        it("should parse single config and open url", function () {
+            //TODO
+        });
+
+        it("should parse multiple configs and open url", function () {
+            //TODO
+        });
+
+        it("throws exception on unrecognized options", function () {
+
+        });
+
+        it("throws exception when transport is not set", function () {
+
+        });
+
+
+        it('establish a http2 stream to push cache server url', function () {
+
+        });
+
+        it('reconnects http2 to server url on failure', function () {
+
+        });
+
+
+    });
+
+    it.skip('sends push promise to cache', function () {
+
+    });
+
+    it.skip('notifies cache when promise stream is closed', function () {
+
+    });
+
+    it.skip('supports multiple promises at once', function () {
+
     });
 
 });
