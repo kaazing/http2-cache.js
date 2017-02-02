@@ -1,14 +1,15 @@
 {
   "name": "push-cache-client",
   "version": "1.0.0",
-  "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over WebSockets",
+  "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "pretest": "browserify lib/http2-cache.js -o builds/bundle.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/montagejs/push-cache-client.git"
+    "url": "git+https://github.com/montagejs/http2-cache.git"
   },
   "keywords": [
     "http",
@@ -20,13 +21,14 @@
   "author": "dpwspoon",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/montagejs/push-cache-clientissues"
+    "url": "https://github.com/montagestudio/http2-cache/issues"
   },
-  "homepage": "https://github.com/montagejs/push-cache-client#readme",
+  "homepage": "https://github.com/montagestudio/http2-cache#readme",
   "devDependencies": {
+    "browserify": "14.0.0 ",
     "xhr2": "0.1.4",
     "spdy": "3.4.4 ",
     "sinon": "1.17.7",
-    "mocha":  "3.2.0"
+    "mocha": "3.2.0"
   }
 }
