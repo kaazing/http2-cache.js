@@ -9,18 +9,12 @@ if (typeof exports !== 'undefined') {
 require("../lib/http2-cache");
 var assert = require('assert');
 var sinon = require('sinon');
-// var http2 = require('spdy');
-// var https = require('https');
 var http = require('http');
-// var fs = require('fs');
 
 describe('XMLHttpRequest (Proxy)', function () {
 
     var validConfig1 = [{
         "url": "http://cache-endpoint1/",
-        "options": {
-            "transport": "ws://localhost:8080/ws"
-        }
     }];
 
     var validConfig2 = [{
@@ -35,16 +29,15 @@ describe('XMLHttpRequest (Proxy)', function () {
         beforeEach(function (done) {
             this.xhr = new XMLHttpRequest();
 
-            this.stub = sinon.stub(XMLHttpRequest, "_addConfig");
-            const PORT=8080;
+            const PORT = 8080;
 
-            function handleRequest(request, response){
-                if(request.url === "/validConfig1"){
-                    response.setHeader('Content-Encoding','application/json; charset=utf-8');
+            function handleRequest(request, response) {
+                if (request.url === "/validConfig1") {
+                    response.setHeader('Content-Encoding', 'application/json; charset=utf-8');
                     response.end(JSON.stringify(validConfig1));
-                } else if(request.url === "/validConfig2"){
-                    response.setHeader('Content-Encoding','application/json; charset=utf-8');
-                    response.end(validConfig2, "application/json");
+                } else if (request.url === "/validConfig2") {
+                    response.setHeader('Content-Encoding', 'application/json; charset=utf-8');
+                    response.end(JSON.stringify(validConfig2));
                 } else {
                     response.statusCode = 404;
                     response.end();
@@ -53,18 +46,16 @@ describe('XMLHttpRequest (Proxy)', function () {
 
             this.server = http.createServer(handleRequest);
 
-            this.server.listen(PORT, function(){
+            this.server.listen(PORT, function () {
                 done();
             });
         });
 
         afterEach(function (done) {
             this.server.close(done);
-            XMLHttpRequest._addConfig.restore();
         });
 
         it('with empty params throws exception', function () {
-
             assert.throws(function () {
                 XMLHttpRequest.proxy()
             });
@@ -80,17 +71,47 @@ describe('XMLHttpRequest (Proxy)', function () {
 
         it('should load config', function (done) {
             XMLHttpRequest.proxy(["http://localhost:8080/validConfig1"]);
-            // this.stub.withArgs(JSON.toString(validConfig1)).calls(done);
-            setTimeout(function(){done();}, 1000);
+            this.stub = sinon.stub(XMLHttpRequest, "_addConfig", function (config) {
+                assert.equal(config, JSON.stringify(validConfig1));
+                XMLHttpRequest._addConfig.restore();
+                done();
+            });
         });
 
-        // it('should load multiple configs', function () {
-        //     XMLHttpRequest.proxy(["http://localhost:8080/validConfig1", "http://localhost:8080/validConfig2"]);
+        it('should load multiple configs', function (done) {
+            XMLHttpRequest.proxy(["http://localhost:8080/validConfig1", "http://localhost:8080/validConfig2"]);
+            this.stub = sinon.stub(XMLHttpRequest, "_addConfig", function (config) {
+                // Multiple calls to arbitrary functions not currently supported, thus
+                // the if/else work around here: https://github.com/sinonjs/sinon/issues/118
+                if (config === JSON.stringify(validConfig1)) {
+                    assert.equal(config, JSON.stringify(validConfig1));
+                } else {
+                    assert.equal(config, JSON.stringify(validConfig2));
+                    XMLHttpRequest._addConfig.restore();
+                    done();
+                }
+            });
+        });
+    });
+
+    describe('_addConfig()', function () {
+        it('should throw error on invalid json', function () {
+            assert.throws(function () {
+                XMLHttpRequest._addConfig("Not JSON");
+            });
+        });
+
+        it('should open connection to push service URL', function () {
+            XMLHttpRequest._addConfig(JSON.toString(validConfig1));
+        });
+
+        // it.skip('should open connection to push service URL with transport option', function () {
+        //     XMLHttpRequest._addConfig(validConfig2);
         // });
-
-        it.skip('overrides window.XMLHttpRequest', function () {
-
-        });
+        //
+        // it.skip('should throw error if unrecognized option in config', function () {
+        //     //TODO
+        // });
     });
 
     describe.skip('._add()', function () {
@@ -119,8 +140,6 @@ describe('XMLHttpRequest (Proxy)', function () {
         it('reconnects http2 to server url on failure', function () {
 
         });
-
-
     });
 
     it.skip('sends push promise to cache', function () {
