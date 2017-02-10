@@ -4,19 +4,19 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
+    "lint": "standard",
     "test": "mocha",
-    "pretest": "browserify lib/http2-cache.js -o builds/bundle.js"
+    "pretest": "browserify lib/http2.js -o builds/bundle.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/montagejs/http2-cache.git"
   },
   "keywords": [
-    "http",
-    "in",
+    "http2",
     "js",
     "sandbox",
-    "caching"
+    "push"
   ],
   "author": "dpwspoon",
   "license": "Apache-2.0",
@@ -24,6 +24,9 @@
     "url": "https://github.com/montagestudio/http2-cache/issues"
   },
   "homepage": "https://github.com/montagestudio/http2-cache#readme",
+  "dependencies": {
+    "spdy-transport": "2.0.18"
+  },
   "devDependencies": {
     "browserify": "14.0.0 ",
     "xhr2": "0.1.4",

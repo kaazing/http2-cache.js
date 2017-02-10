@@ -2,7 +2,6 @@ if (typeof exports !== 'undefined') {
     if (typeof XMLHttpRequest === 'undefined') {
         XMLHttpRequest = require("xhr2").XMLHttpRequest;
     }
-    HttpCache = require("../lib/HttpCache");
 } else {
     XMLHttpRequest = Window.XMLHttpRequest;
 }
@@ -102,43 +101,15 @@ describe('XMLHttpRequest (Proxy)', function () {
         });
 
         it('should open connection to push service URL', function () {
-            XMLHttpRequest._addConfig(JSON.toString(validConfig1));
+            XMLHttpRequest._addConfig(JSON.stringify(validConfig1));
         });
 
-        // it.skip('should open connection to push service URL with transport option', function () {
-        //     XMLHttpRequest._addConfig(validConfig2);
-        // });
-        //
-        // it.skip('should throw error if unrecognized option in config', function () {
-        //     //TODO
-        // });
-    });
+        it.skip('should open connection to push service URL with transport option', function () {
+            XMLHttpRequest._addConfig(validConfig2);
+        });
 
-    describe.skip('._add()', function () {
-
-        it("should parse single config and open url", function () {
+        it.skip('should throw error if unrecognized option in config', function () {
             //TODO
-        });
-
-        it("should parse multiple configs and open url", function () {
-            //TODO
-        });
-
-        it("throws exception on unrecognized options", function () {
-
-        });
-
-        it("throws exception when transport is not set", function () {
-
-        });
-
-
-        it('establish a http2 stream to push cache server url', function () {
-
-        });
-
-        it('reconnects http2 to server url on failure', function () {
-
         });
     });
 
