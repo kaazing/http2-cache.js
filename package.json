@@ -4,9 +4,12 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "lint": "standard",
+    "prestartk3po": "echo 'pre startK3po'",
+    "startk3po": "echo 'startK3po'",
+    "pretest": "browserify lib/http2-ws.js -o builds/bundle.js && nohup java -jar java-artifacts-TODO-move/ry-develop-SNAPSHOT.jar -script test/reaktivity/ws-echo.js > /dev/null 2>&1 & echo $! > run.pid",
     "test": "mocha",
-    "pretest": "browserify lib/http2.js -o builds/bundle.js"
+    "preintegration-test": "",
+    "integration-test": " "
   },
   "repository": {
     "type": "git",
