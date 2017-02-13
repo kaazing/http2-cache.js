@@ -8,9 +8,9 @@
     "startk3po": "echo 'startK3po'",
     "pretest": "browserify lib/http2-ws.js -o builds/bundle.js && nohup java -jar java-artifacts-TODO-move/ry-develop-SNAPSHOT.jar -script test/reaktivity/ws-echo.js > /dev/null 2>&1 & echo $! > run.pid",
     "test": "mocha",
-    "preintegration-test": "node reactivity.js start",
+    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start",
     "integration-test": "echo \"to do run tests\"",
-    "postintegration-test": "node reactivity.js stop"
+    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop"
   },
   "repository": {
     "type": "git",
