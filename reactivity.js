@@ -13,7 +13,7 @@ var args = process.argv.slice(2);
 var outputFile = './builds/integration-test/reaktivity-out.log';
 var pidFile = './builds/integration-test/reaktivity.pid';
 var config = './integration-test/reaktivity/ws-echo-config.js';
-var ryJava = './integration-test/java-artifacts-TODO-move/ry-develop-SNAPSHOT.jar';
+var ryJava = './integration-test/reaktivity/java-artifacts-TODO-move/ry-develop-SNAPSHOT.jar';
 var successline = "bound to";
 
 var mkdir = function (dir) {
