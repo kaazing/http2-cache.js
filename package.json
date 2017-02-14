@@ -8,9 +8,11 @@
     "startk3po": "echo 'startK3po'",
     "pretest": "browserify lib/http2-ws.js -o builds/bundle.js && nohup java -jar java-artifacts-TODO-move/ry-develop-SNAPSHOT.jar -script test/reaktivity/ws-echo.js > /dev/null 2>&1 & echo $! > run.pid",
     "test": "mocha",
-    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start",
-    "integration-test": "echo \"to do run tests\"",
-    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop"
+    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start && node ./integration-test/k3po/k3po.js start",
+    "integration-test": "mocha integration-test/*.js",
+    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop && node ./integration-test/k3po/k3po.js stop",
+    "build": "npm run test && npm run integration-test",
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -32,6 +34,7 @@
     "spdy-transport": "2.0.18"
   },
   "devDependencies": {
+    "websocket": "1.0.24 ",
     "browserify": "14.0.0 ",
     "xhr2": "0.1.4",
     "spdy": "3.4.4 ",

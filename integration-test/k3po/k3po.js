@@ -1,20 +1,17 @@
 /**
- * Starts reactivity for integration tests
+ * Starts k3po for integration tests
  *
- * TODO: There is a race between stop (ie. restart does not work), need to wait on confirmed stop
- *
- * TODO: Consider programming config here, rather then calling java and passing in js config to java js interpreter
  */
 const spawn = require('child_process').spawn;
 var fs = require('fs');
 var readline = require('readline');
 var args = process.argv.slice(2);
 
-var outputFile = './builds/integration-test/reaktivity-out.log';
-var pidFile = './builds/integration-test/reaktivity.pid';
-var config = './integration-test/reaktivity/ws-echo-config.js';
-var ryJava = '/Users/David/Documents/projects/reactivity/ry.java/target/ry-develop-SNAPSHOT.jar';
-var successline = "bound to";
+var outputFile = './builds/integration-test/k3po-out.log';
+var pidFile = './builds/integration-test/k3po.pid';
+var config = './integration-test/k3po/pom.xml';
+var mvn = 'mvn';
+var successline = "K3PO started";
 
 var mkdir = function (dir) {
     if (!fs.existsSync(dir)) {
@@ -38,7 +35,7 @@ if (fs.existsSync(pidFile)) {
     });
     lineReader.on('line', function (line) {
         try {
-            console.log("Killing reaktivity, PID = " + line);
+            console.log("Killing K3PO, PID = " + line);
             process.kill(line, 'SIGHUP');
         } catch (e) {
             //NOOP
@@ -54,11 +51,11 @@ if (fs.existsSync(pidFile)) {
 if (args[0] && args[0].indexOf('start') > -1) {
     rmIfExists(outputFile);
 
-    console.log("Starting reaktivity with config " + config);
+    console.log("Starting K3PO via mvn " + config);
 
     var out = fs.createWriteStream(outputFile);
-    const child = spawn('java',
-        ['-jar', ryJava, '-script', config]
+    const child = spawn(mvn,
+        ['k3po:start', '-Dmaven.k3po.daemon=false', '-f', config]
     );
 
     // save PID
@@ -74,7 +71,7 @@ if (args[0] && args[0].indexOf('start') > -1) {
     child.stdout.on('data', function (data) {
         process.stdout.write(" " + data);
         if (data.indexOf(successline) > -1) {
-            console.log("Started reaktivity");
+            console.log("Started K3PO");
             child.stdout.pipe(out);
             child.stdin.pipe(out);
             process.exit(0);
@@ -87,7 +84,7 @@ if (args[0] && args[0].indexOf('start') > -1) {
 
     // fail is success line not read
     child.on('close', function (code) {
-        console.log("Failed to start reaktivity");
+        console.log("Failed to start K3PO");
         process.kill(child.pid, 'SIGHUP');
         process.exit(-1);
     });
