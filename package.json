@@ -4,13 +4,11 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "prestartk3po": "echo 'pre startK3po'",
-    "startk3po": "echo 'startK3po'",
     "pretest": "browserify lib/http2-ws.js -o builds/bundle.js && nohup java -jar java-artifacts-TODO-move/ry-develop-SNAPSHOT.jar -script test/reaktivity/ws-echo.js > /dev/null 2>&1 & echo $! > run.pid",
     "test": "mocha",
-    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start && node ./integration-test/k3po/k3po.js start",
-    "integration-test": "mocha integration-test/*.js",
-    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop && node ./integration-test/k3po/k3po.js stop",
+    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid start",
+    "integration-test": "mocha --ui /Users/David/Documents/projects/javascript-k3po/k3po-mocha.js/k3po-ui.js integration-test/k3po-test.js",
+    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid",
     "build": "npm run test && npm run integration-test",
     "prepublish": "npm run build"
   },
@@ -34,11 +32,14 @@
     "spdy-transport": "2.0.18"
   },
   "devDependencies": {
+    "k3po-exec": "0.0.x",
+    "k3po-mocha.js": "0.0.x",
     "websocket": "1.0.24 ",
     "browserify": "14.0.0 ",
     "xhr2": "0.1.4",
     "spdy": "3.4.4 ",
     "sinon": "1.17.7",
+    "chai": "3.5.0",
     "mocha": "3.2.0"
   }
 }

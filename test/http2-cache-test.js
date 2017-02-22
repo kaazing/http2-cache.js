@@ -13,7 +13,7 @@ var http = require('http');
 describe('XMLHttpRequest (Proxy)', function () {
 
     var validConfig1 = [{
-        "url": "http://cache-endpoint1/",
+        "url": "http://cache-endpoint1/"
     }];
 
     var validConfig2 = [{

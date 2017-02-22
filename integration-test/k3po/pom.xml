@@ -24,6 +24,14 @@
             </goals>
           </execution>
         </executions>
+        <dependencies>
+          <dependency>
+            <groupId>org.kaazing</groupId>
+            <artifactId>specification.ws</artifactId>
+            <version>3.0.0-alpha-54</version>
+          </dependency>
+
+        </dependencies>
         <!-- TODO add dependencies for needed spec projects -->
       </plugin>
     </plugins>

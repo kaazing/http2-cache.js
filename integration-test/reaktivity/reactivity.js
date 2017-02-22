@@ -12,7 +12,8 @@ var args = process.argv.slice(2);
 
 var outputFile = './builds/integration-test/reaktivity-out.log';
 var pidFile = './builds/integration-test/reaktivity.pid';
-var config = './integration-test/reaktivity/ws-echo-config.js';
+// var config = './integration-test/reaktivity/ws-echo-config.js';
+var config = './integration-test/reaktivity/ws-tcp-proxy-config.js';
 var ryJava = '/Users/David/Documents/projects/reactivity/ry.java/target/ry-develop-SNAPSHOT.jar';
 var successline = "bound to";
 
