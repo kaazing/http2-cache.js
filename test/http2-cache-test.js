@@ -100,7 +100,7 @@ describe('XMLHttpRequest (Proxy)', function () {
             });
         });
 
-        it('should open connection to push service URL', function () {
+        it.skip('should open connection to push service URL', function () {
             XMLHttpRequest._addConfig(JSON.stringify(validConfig1));
         });
 

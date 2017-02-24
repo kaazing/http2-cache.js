@@ -21,7 +21,20 @@ describe('http2-cache', function () {
     // }
 
     it('end.to.end.http2.cache', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:8080"]);
+        XMLHttpRequest.proxy(["http://localhost:8080"], function(){
+            console.log("got callback!");
+            var xhr = new XMLHttpRequest();
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState == 4) {
+                    if (xhr.status == 200) {
+                        done();
+                    }
+                }
+            };
+            xhr.open('GET', "http://localhost:8080/scores", true);
+            xhr.send(null);
+        });
     });
 
 });

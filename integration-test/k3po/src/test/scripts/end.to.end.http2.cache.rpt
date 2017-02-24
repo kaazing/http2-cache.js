@@ -24,7 +24,7 @@ read closed
 write status "200" "OK"
 write header content-length
 write header "Content-Encoding" "application/json; charset=utf-8"
-write "{	\"url\": \"http://localhost/\",	\"options\": {		\"transport\": \"ws://localhost:8080/\"	}}"
+write "{\"url\":\"http://localhost:8080/base\",\"options\": {\"transport\":\"ws://localhost:8080/\"}}"
 write close
 
 accepted
