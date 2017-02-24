@@ -11,7 +11,7 @@ if (typeof exports !== 'undefined') {
 }
 var sinon = require('sinon');
 var chai = require('chai');
-require("../lib/http2-cache");
+require("../lib/http2-proxy");
 
 describe('http2-cache', function () {
 

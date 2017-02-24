@@ -5,7 +5,7 @@ if (typeof exports !== 'undefined') {
 } else {
     XMLHttpRequest = Window.XMLHttpRequest;
 }
-require("../lib/http2-cache");
+require("../lib/http2-proxy");
 var assert = require('assert');
 var sinon = require('sinon');
 var http = require('http');
