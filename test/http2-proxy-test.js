@@ -180,13 +180,32 @@ describe('H2 Proxy', function () {
             XMLHttpRequest.proxy(["http://localhost:7080/config1", "http://localhost:7080/config2"]);
         });
 
-        // it('should proxy get request', function (done) {
-        //     s2OnRequest = function (request, response) {
-        //         assert.equal(request.url, 'stream', 'should be on streaming url');
-        //         done();
-        //     };
-        //     XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
-        // });
+        it('should proxy GET request', function (done) {
+            var message = "Hi Dave!";
+            s2OnRequest = function (request, response) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/path', 'should be on streaming url');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', 'private, max-age=0');
+                response.write(message);
+                response.end();
+            };
+            XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+            var xhr = new XMLHttpRequest();
+
+            var statechanges = 0;
+            xhr.onreadystatechange = function () {
+                assert.equal(++statechanges, xhr.readyState);
+                if (xhr.readyState == 4 && xhr.status == 200) {
+                    done();
+                }
+            };
+            xhr.open('GET', 'https://cache-endpoint2/path', true);
+
+            xhr.send(null);
+
+        });
     });
 
 });
