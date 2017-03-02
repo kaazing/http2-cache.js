@@ -218,8 +218,9 @@ describe('H2 Proxy', function () {
         var xhr2 = new XMLHttpRequest();
 
         var doneCnt = 0;
-        function done2(){
-            if(++doneCnt == 2){
+
+        function done2() {
+            if (++doneCnt == 2) {
                 done();
             }
         }
@@ -249,15 +250,9 @@ describe('H2 Proxy', function () {
         };
 
         xhr.open('GET', 'http://localhost:7080/config2', true);
-
         xhr.send(null);
-
         xhr2.open('GET', 'http://localhost:7080/config1', true);
-
         xhr2.send(null);
-
-
-
     });
 
 });
