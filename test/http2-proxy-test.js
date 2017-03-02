@@ -212,9 +212,17 @@ describe('H2 Proxy', function () {
     });
 
 
-    it('should not proxy GET request to different origin', function (done) {
+    it('should not proxy different origin GET requests', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
         var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
+
+        var doneCnt = 0;
+        function done2(){
+            if(++doneCnt == 2){
+                done();
+            }
+        }
 
         var statechanges = 0;
         xhr.onreadystatechange = function () {
@@ -224,35 +232,32 @@ describe('H2 Proxy', function () {
                 assert.equal("OK", xhr.statusText);
             }
             if (xhr.readyState == 4 && xhr.status == 200) {
-                done();
+                done2();
             }
         };
 
+        var statechanges2 = 0;
+        xhr2.onreadystatechange = function () {
+            assert.equal(xhr2.readyState, ++statechanges2);
+            if (xhr2.readyState >= 2) {
+                assert.equal(200, xhr2.status);
+                assert.equal("OK", xhr2.statusText);
+            }
+            if (xhr2.readyState == 4 && xhr2.status == 200) {
+                done2();
+            }
+        };
 
         xhr.open('GET', 'http://localhost:7080/config2', true);
 
         xhr.send(null);
 
-    });
+        xhr2.open('GET', 'http://localhost:7080/config1', true);
 
-    it('should not proxy GET request to different origin 2', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
-        var xhr = new XMLHttpRequest();
+        xhr2.send(null);
 
-        var statechanges = 0;
-        xhr.onreadystatechange = function () {
-            assert.equal(xhr.readyState, ++statechanges);
-            if (xhr.readyState >= 2) {
-                assert.equal(200, xhr.status);
-                assert.equal("OK", xhr.statusText);
-            }
-            if (xhr.readyState == 4 && xhr.status == 200) {
-                done();
-            }
-        };
-        xhr.open('GET', 'http://localhost:7080/config1', true);
 
-        xhr.send(null);
 
     });
+
 });
