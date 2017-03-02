@@ -197,9 +197,12 @@ describe('H2 Proxy', function () {
         xhr.onreadystatechange = function () {
             assert.equal(++statechanges, xhr.readyState);
             if (xhr.readyState >= 2) {
-                assert.equal(200, xhr.status);
-                assert.equal("OK", xhr.statusText);
-                // TODO assert message
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+            // TODO assert message
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
             }
             if (xhr.readyState == 4 && xhr.status == 200) {
                 done();
@@ -241,8 +244,8 @@ describe('H2 Proxy', function () {
         xhr2.onreadystatechange = function () {
             assert.equal(xhr2.readyState, ++statechanges2);
             if (xhr2.readyState >= 2) {
-                assert.equal(200, xhr2.status);
-                assert.equal("OK", xhr2.statusText);
+                assert.equal(xhr2.status, 200);
+                assert.equal(xhr2.statusText, "OK");
             }
             if (xhr2.readyState == 4 && xhr2.status == 200) {
                 done2();
@@ -253,6 +256,46 @@ describe('H2 Proxy', function () {
         xhr.send(null);
         xhr2.open('GET', 'http://localhost:7080/config1', true);
         xhr2.send(null);
+    });
+
+    // assert.equal(request.url, '/path', 'should be on streaming url');
+    // response.setHeader('Content-Type', 'text/html');
+    // response.setHeader('Content-Length', message.length);
+    // response.setHeader('Cache-Control', 'private, max-age=0');
+
+    it('should used pushed results in cache', function (done) {
+        var message = "Affirmative, Dave. I read you. ";
+        s1OnRequest = function (request, response) {
+            assert.equal(request.url, 'stream', 'should be on streaming url');
+            var pr = response.push({
+                'path': '/path'
+            });
+            pr.setHeader('Content-Type', 'text/html');
+            pr.setHeader('Content-Length', message.length);
+            pr.setHeader('Cache-Control', 'private, max-age=0');
+            pr.write(message);
+            pr.end(function(){
+                var xhr = new XMLHttpRequest();
+
+                var statechanges = 0;
+                xhr.onreadystatechange = function () {
+                    assert.equal(++statechanges, xhr.readyState);
+                    if (xhr.readyState >= 2) {
+                        assert.equal(xhr.status, 200);
+                        assert.equal(xhr.statusText, "OK");
+                        assert.equal(xhr.response, message);
+                        // TODO assert message
+                    }
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        done();
+                    }
+                };
+                xhr.open('GET', 'https://cache-endpoint2/path', true);
+
+                xhr.send(null);
+            });
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
     });
 
 });

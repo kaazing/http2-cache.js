@@ -29,7 +29,9 @@
   "homepage": "https://github.com/montagestudio/http2-cache#readme",
   "dependencies": {
     "http2": "0.0.x",
-    "websocket-stream": "3.3.3"
+    "websocket-stream": "3.3.3",
+    "collections": "~5.0.x",
+    "bluebird": "~3.4.x"
   },
   "devDependencies": {
     "k3po-exec": "0.0.x",
