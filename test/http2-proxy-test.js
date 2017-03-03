@@ -258,43 +258,42 @@ describe('H2 Proxy', function () {
         xhr2.send(null);
     });
 
-    // assert.equal(request.url, '/path', 'should be on streaming url');
-    // response.setHeader('Content-Type', 'text/html');
-    // response.setHeader('Content-Length', message.length);
-    // response.setHeader('Cache-Control', 'private, max-age=0');
-
-    it.skip('should used pushed results in cache', function (done) {
+    it('should use pushed results in cache', function (done) {
         var message = "Affirmative, Dave. I read you. ";
-        // s1OnRequest = function (request, response) {
-        //     assert.equal(request.url, 'stream', 'should be on streaming url');
-        //     var pr = response.push({
-        //         'path': '/path'
-        //     });
-        //     pr.setHeader('Content-Type', 'text/html');
-        //     pr.setHeader('Content-Length', message.length);
-        //     pr.setHeader('Cache-Control', 'private, max-age=0');
-        //     pr.write(message);
-        //     pr.end(function(){
-        //         var xhr = new XMLHttpRequest();
-        //
-        //         var statechanges = 0;
-        //         xhr.onreadystatechange = function () {
-        //             assert.equal(++statechanges, xhr.readyState);
-        //             if (xhr.readyState >= 2) {
-        //                 assert.equal(xhr.status, 200);
-        //                 assert.equal(xhr.statusText, "OK");
-        //                 assert.equal(xhr.response, message);
-        //                 // TODO assert message
-        //             }
-        //             if (xhr.readyState == 4 && xhr.status == 200) {
-        //                 done();
-        //             }
-        //         };
-        //         xhr.open('GET', 'https://cache-endpoint2/path', true);
-        //
-        //         xhr.send(null);
-        //     });
-        // };
+        var xhr = new XMLHttpRequest();
+        s1OnRequest = function (request, response) {
+            assert.equal(request.url, 'stream', 'should be on streaming url');
+            var pr = response.push({
+                'path': '/pushedCache1'
+            });
+            pr.setHeader('Content-Type', 'text/html');
+            pr.setHeader('Content-Length', message.length);
+            pr.setHeader('Cache-Control', 'private, max-age=5');
+            pr.write(message);
+            pr.end();
+            setTimeout(function () {
+                var statechanges = 0;
+                xhr.onreadystatechange = function () {
+                    assert.equal(xhr.readyState, ++statechanges);
+                    if (xhr.readyState >= 2) {
+                        assert.equal(xhr.status, 200);
+                        assert.equal(xhr.statusText, "OK");
+                    }
+
+                    if (xhr.readyState >= 3) {
+                        assert.equal(xhr.response, message);
+                    }
+
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        done();
+                    }
+                };
+                xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
+
+                xhr.send(null);
+                // There is a race between xhr and push
+            }, 1000);
+        };
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
     });
 
@@ -324,7 +323,6 @@ describe('H2 Proxy', function () {
                 assert.equal(firstRequest.status, 200);
                 assert.equal(firstRequest.statusText, "OK");
             }
-            // TODO assert message
             if (firstRequest.readyState >= 3) {
                 assert.equal(firstRequest.response, message);
             }
@@ -338,7 +336,6 @@ describe('H2 Proxy', function () {
                         assert.equal(secondRequest.status, 200);
                         assert.equal(secondRequest.statusText, "OK");
                     }
-                    // TODO assert message
                     if (secondRequest.readyState >= 3) {
                         assert.equal(secondRequest.response, message);
                     }
@@ -347,9 +344,7 @@ describe('H2 Proxy', function () {
                     }
                 };
                 secondRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
-
                 secondRequest.send(null);
-
             }
         };
         firstRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
