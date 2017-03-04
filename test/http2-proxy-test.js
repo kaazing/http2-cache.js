@@ -1,4 +1,6 @@
+/* jshint ignore:start */
 XMLHttpRequest = require("xhr2").XMLHttpRequest;
+/* jshint ignore:end */
 require("../lib/http2-proxy");
 var assert = require('assert');
 var http = require('http');
@@ -91,18 +93,18 @@ describe('H2 Proxy', function () {
     beforeEach(function (done) {
         // starts the 2 h2overWs servers
         s1OnRequest = function (request, response) {
-            throw "Unexpected event";
+            throw "Unexpected event: " + request + " " + response;
         };
 
         s2OnRequest = function (request, response) {
-            throw "Unexpected event";
+            throw "Unexpected event " + request + " " + response;
         };
 
         var completed = 0;
 
         function doneOn2() {
             completed++;
-            if (completed == 2) {
+            if (completed === 2) {
                 done();
             }
         }
@@ -126,7 +128,7 @@ describe('H2 Proxy', function () {
 
         function doneOn2() {
             completed++;
-            if (completed == 2) {
+            if (completed === 2) {
                 done();
             }
         }
@@ -149,7 +151,7 @@ describe('H2 Proxy', function () {
     });
 
     it('should load config and start stream for pushs when h2PushPath is set in config', function (done) {
-        s1OnRequest = function (request, response) {
+        s1OnRequest = function (request) {
             assert.equal(request.url, 'stream', 'should be on streaming url');
             done();
         };
@@ -157,7 +159,7 @@ describe('H2 Proxy', function () {
     });
 
     it('should load config 2 and start stream for pushs when h2PushPath is set in config', function (done) {
-        s1OnRequest = function (request, response) {
+        s1OnRequest = function (request) {
             assert.equal(request.url, 'stream', 'should be on streaming url');
             done();
         };
@@ -165,7 +167,7 @@ describe('H2 Proxy', function () {
     });
 
     it('should load multiple configs', function (done) {
-        s1OnRequest = function (request, response) {
+        s1OnRequest = function (request) {
             assert.equal(request.url, 'stream', 'should be on streaming url');
             // wait is to confirm it doesn't make a request,
             // perhaps this test can be removed when we have more complex ones using same functionality
@@ -173,7 +175,7 @@ describe('H2 Proxy', function () {
                 done();
             }, 200);
         };
-        s2OnRequest = function (request, response) {
+        s2OnRequest = function () {
             throw "should never be here";
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1", "http://localhost:7080/config2"]);
@@ -204,7 +206,7 @@ describe('H2 Proxy', function () {
             if (xhr.readyState >= 3) {
                 assert.equal(xhr.response, message);
             }
-            if (xhr.readyState == 4 && xhr.status == 200) {
+            if (xhr.readyState === 4 && xhr.status === 200) {
                 done();
             }
         };
@@ -223,7 +225,7 @@ describe('H2 Proxy', function () {
         var doneCnt = 0;
 
         function done2() {
-            if (++doneCnt == 2) {
+            if (++doneCnt === 2) {
                 done();
             }
         }
@@ -235,7 +237,7 @@ describe('H2 Proxy', function () {
                 assert.equal(200, xhr.status);
                 assert.equal("OK", xhr.statusText);
             }
-            if (xhr.readyState == 4 && xhr.status == 200) {
+            if (xhr.readyState === 4 && xhr.status === 200) {
                 done2();
             }
         };
@@ -247,7 +249,7 @@ describe('H2 Proxy', function () {
                 assert.equal(xhr2.status, 200);
                 assert.equal(xhr2.statusText, "OK");
             }
-            if (xhr2.readyState == 4 && xhr2.status == 200) {
+            if (xhr2.readyState === 4 && xhr2.status === 200) {
                 done2();
             }
         };
@@ -284,7 +286,7 @@ describe('H2 Proxy', function () {
                         assert.equal(xhr.response, message);
                     }
 
-                    if (xhr.readyState == 4 && xhr.status == 200) {
+                    if (xhr.readyState === 4 && xhr.status === 200) {
                         done();
                     }
                 };
@@ -301,7 +303,7 @@ describe('H2 Proxy', function () {
         var message = "Hello, Dave. You're looking well today.";
         var requestCount = 0;
         s2OnRequest = function (request, response) {
-            if (++requestCount == 1) {
+            if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetRequest');
                 response.setHeader('Content-Type', 'text/html');
@@ -326,7 +328,7 @@ describe('H2 Proxy', function () {
             if (firstRequest.readyState >= 3) {
                 assert.equal(firstRequest.response, message);
             }
-            if (firstRequest.readyState == 4 && firstRequest.status == 200) {
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
                 var secondRequest = new XMLHttpRequest();
 
                 var statechanges2 = 0;
@@ -339,7 +341,7 @@ describe('H2 Proxy', function () {
                     if (secondRequest.readyState >= 3) {
                         assert.equal(secondRequest.response, message);
                     }
-                    if (secondRequest.readyState == 4 && secondRequest.status == 200) {
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
                         done();
                     }
                 };
