@@ -91,11 +91,11 @@ describe('H2 Proxy', function () {
     beforeEach(function (done) {
         // starts the 2 h2overWs servers
         s1OnRequest = function (request, response) {
-            throw "Unexpected event"
+            throw "Unexpected event";
         };
 
         s2OnRequest = function (request, response) {
-            throw "Unexpected event"
+            throw "Unexpected event";
         };
 
         var completed = 0;
@@ -137,7 +137,7 @@ describe('H2 Proxy', function () {
 
     it('with empty params throws exception', function () {
         assert.throws(function () {
-            XMLHttpRequest.proxy()
+            XMLHttpRequest.proxy();
         });
     });
 
@@ -145,7 +145,7 @@ describe('H2 Proxy', function () {
         assert.throws(function () {
                 XMLHttpRequest.proxy("https://url");
             }
-        )
+        );
     });
 
     it('should load config and start stream for pushs when h2PushPath is set in config', function (done) {
