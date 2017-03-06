@@ -169,11 +169,7 @@ describe('H2 Proxy', function () {
     it('should load multiple configs', function (done) {
         s1OnRequest = function (request) {
             assert.equal(request.url, 'stream', 'should be on streaming url');
-            // wait is to confirm it doesn't make a request,
-            // perhaps this test can be removed when we have more complex ones using same functionality
-            setTimeout(function () {
-                done();
-            }, 200);
+            done();
         };
         s2OnRequest = function () {
             throw "should never be here";
@@ -273,7 +269,6 @@ describe('H2 Proxy', function () {
             pr.setHeader('Cache-Control', 'private, max-age=5');
             pr.write(message);
             pr.end();
-            setTimeout(function () {
                 var statechanges = 0;
                 xhr.onreadystatechange = function () {
                     assert.equal(xhr.readyState, ++statechanges);
@@ -291,10 +286,11 @@ describe('H2 Proxy', function () {
                     }
                 };
                 xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
-
-                xhr.send(null);
-                // There is a race between xhr.js and push
-            }, 1000);
+                // There is a race between xhr.js and push with out subscribe
+                xhr.subscribe(function(){
+                    xhr.unsubscribe();
+                    xhr.send(null);
+                });
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
     });
