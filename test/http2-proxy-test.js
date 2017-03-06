@@ -293,7 +293,7 @@ describe('H2 Proxy', function () {
                 xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
 
                 xhr.send(null);
-                // There is a race between xhr and push
+                // There is a race between xhr.js and push
             }, 1000);
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
