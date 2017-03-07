@@ -37,8 +37,8 @@
   },
   "devDependencies": {
     "jshint": "2.9.4",
-    "k3po-exec": "0.0.x",
-    "k3po-mocha.js": "0.0.x",
+    "k3po-exec": "0.1.x",
+    "k3po-mocha.js": "0.1.x",
     "browserify": "14.0.0 ",
     "xhr2": "0.1.4",
     "spdy": "3.4.4 ",
