@@ -212,6 +212,39 @@ describe('H2 Proxy', function () {
 
     });
 
+    it('should proxy GET request with event listeners', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        s2OnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/withListeners');
+            response.setHeader('Content-Type', 'text/html');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.write(message);
+            response.end();
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        var xhr = new XMLHttpRequest();
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                    xhr.onloadend = function () {
+                        assert.equal(xhr.response, message);
+                        done();
+                    };
+                };
+            };
+        };
+
+        xhr.open('GET', 'https://cache-endpoint2/withListeners', true);
+
+        xhr.send(null);
+
+    });
+
 
     it('should not proxy different origin GET requests', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
@@ -219,9 +252,8 @@ describe('H2 Proxy', function () {
         var xhr2 = new XMLHttpRequest();
 
         var doneCnt = 0;
-
-        function done2() {
-            if (++doneCnt === 2) {
+        function doneN(n) {
+            if (++doneCnt === n) {
                 done();
             }
         }
@@ -234,8 +266,18 @@ describe('H2 Proxy', function () {
                 assert.equal("OK", xhr.statusText);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
-                done2();
+                    doneN(3);
             }
+        };
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        doneN(3);
+                    };
+                };
+            };
         };
 
         var statechanges2 = 0;
@@ -246,7 +288,9 @@ describe('H2 Proxy', function () {
                 assert.equal(xhr2.statusText, "OK");
             }
             if (xhr2.readyState === 4 && xhr2.status === 200) {
-                done2();
+                xhr2.addEventListener('load', function () {
+                    doneN(3);
+                });
             }
         };
 
@@ -269,28 +313,28 @@ describe('H2 Proxy', function () {
             pr.setHeader('Cache-Control', 'private, max-age=5');
             pr.write(message);
             pr.end();
-                var statechanges = 0;
-                xhr.onreadystatechange = function () {
-                    assert.equal(xhr.readyState, ++statechanges);
-                    if (xhr.readyState >= 2) {
-                        assert.equal(xhr.status, 200);
-                        assert.equal(xhr.statusText, "OK");
-                    }
+            var statechanges = 0;
+            xhr.onreadystatechange = function () {
+                assert.equal(xhr.readyState, ++statechanges);
+                if (xhr.readyState >= 2) {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                }
 
-                    if (xhr.readyState >= 3) {
-                        assert.equal(xhr.response, message);
-                    }
+                if (xhr.readyState >= 3) {
+                    assert.equal(xhr.response, message);
+                }
 
-                    if (xhr.readyState === 4 && xhr.status === 200) {
-                        done();
-                    }
-                };
-                xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
-                // There is a race between xhr.js and push with out subscribe
-                xhr.subscribe(function(){
-                    xhr.unsubscribe();
-                    xhr.send(null);
-                });
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    done();
+                }
+            };
+            xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
+            // There is a race between xhr.js and push with out subscribe
+            xhr.subscribe(function () {
+                xhr.unsubscribe();
+                xhr.send(null);
+            });
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
     });
