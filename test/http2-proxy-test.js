@@ -310,7 +310,8 @@ describe('H2 Proxy', function () {
             });
             pr.setHeader('Content-Type', 'text/html');
             pr.setHeader('Content-Length', message.length);
-            pr.setHeader('Cache-Control', 'private, max-age=5');
+            pr.setHeader('Cache-Control', 'max-age=500');
+            pr.setHeader('Date', new Date());
             pr.write(message);
             pr.end();
             var statechanges = 0;
@@ -339,7 +340,7 @@ describe('H2 Proxy', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
     });
 
-    it('should cache GET request and reusue', function (done) {
+    it('should cache GET request and reuse', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         var requestCount = 0;
         s2OnRequest = function (request, response) {
