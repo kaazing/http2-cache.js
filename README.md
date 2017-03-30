@@ -77,8 +77,23 @@ TODO automation tests and testing in full, currently have checked chrome and fir
 
 ### Native Browser Implementations
 
-The browser-implementations directory contains a simple Web App which tests whether the browser
+The native-impl-test directory contains a simple Web App which tests whether the browser
 supports HTTP2 push with SPEC compliant caching.
+
+
+Start origin
+```
+http-server -c-1
+```
+
+Start data server
+```
+ node server.js 
+```
+
+Visit page `https://localhost:8080/` (Note: need to trust TLS cert)
+
+
 
 ### Integration Tests
 
