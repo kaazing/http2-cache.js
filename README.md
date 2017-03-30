@@ -77,8 +77,8 @@ TODO automation tests and testing in full, currently have checked chrome and fir
 
 ### Native Browser Implementations
 
-The native-impl-test directory contains a simple Web App which tests whether the browser
-supports HTTP2 push with SPEC compliant caching.
+The example directory contains a simple Web App which tests whether the browser
+supports native HTTP2 push with SPEC compliant caching.
 
 
 Start origin
