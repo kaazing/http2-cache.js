@@ -40,7 +40,7 @@ var testbase = {
         if (basePath.indexOf(request.url) > -1) {
             // send result
             test1.push(response);
-            var filePath = path.join(__dirname, 'compatibility-check.html');
+            var filePath = path.join(__dirname, 'test.html');
             var stat = fs.statSync(filePath);
             response.writeHead(200, {
                 'Content-Type': 'text/html',
