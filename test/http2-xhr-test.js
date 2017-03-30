@@ -129,6 +129,8 @@ describe('H2 XHR', function () {
                 assert.equal(xhr.response, message);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
                 done();
             }
         };
@@ -254,6 +256,8 @@ describe('H2 XHR', function () {
                 }
 
                 if (xhr.readyState === 4 && xhr.status === 200) {
+                    assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                    assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
                     done();
                 }
             };
