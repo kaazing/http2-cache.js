@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "preinstall" : "browserify lib/http2-proxy.js -o builds/http2-proxy.js",
-    "lint": "jshint lib/*.js test/*.js",
+    "lint": "jshint lib/*.js test/*.js integration-test/*.js",
     "pretest": "npm run lint",
     "test": "mocha",
     "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid start",
