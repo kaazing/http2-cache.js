@@ -10,11 +10,11 @@ if (typeof exports !== 'undefined') {
     XMLHttpRequest = Window.XMLHttpRequest;
     WebSocket = Window.WebSocket;
 }
+var assert = require('assert');
 /* jshint ignore:end */
-var assert = require('assert'),
-    http = require('http');
+var http = require('http');
 
-require("../lib/http2-proxy.js");
+require("../lib/http2-cache.js");
 
 describe('http2-proxy', function () {
 
@@ -41,11 +41,12 @@ describe('http2-proxy', function () {
         XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
 
         var cnt = 0;
-        var interval = setInterval(function () {
+
+        var run = function () {
             var xhr = new XMLHttpRequest();
             xhr.addEventListener("load", function () {
                 cnt++;
-                assert.equal(xhr.responseText, "response" + cnt);
+                console.log("here " + xhr.responseText);
                 if (cnt === 3) {
                     clearInterval(interval);
                     done();
@@ -54,10 +55,10 @@ describe('http2-proxy', function () {
             xhr.open("GET", "http://localhost:8080/");
             xhr.send();
 
-        });
+        };
+        var interval = setInterval(run, 2000);
 
 
-        done();
     });
 
 
