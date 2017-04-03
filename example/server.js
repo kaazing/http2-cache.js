@@ -8,7 +8,7 @@ var options = {
     cert: fs.readFileSync('./resources/localhost.crt')
 };
 
-var basePath = ['/compatibitity-check.html', 'index.html', '/'];
+var basePath = ['/native-support.html', 'index.html', '/'];
 
 var tests = [
     {
@@ -107,7 +107,6 @@ var tests = [
                     'Date:': date
                 }
             );
-            console.log("sent push with date: " + date + " for " + pushPath + " with body: " + body);
             push.end(body);
 
             var message = 'should never display this message (sent push promise)';
@@ -124,7 +123,6 @@ var tests = [
         'mappings': {},
         'failMessage': 'failed (saw request it never should have)',
         'run': function (request, response) {
-            console.log(request.url.replace(('/' + this.name), ''));
             var id = request.url.replace('/' + this.name, '');
             if (this.mappings[id]) {
                 response.writeHead(200, {
@@ -143,7 +141,7 @@ var tests = [
                 function pushPull(push, pushTimeout) {
                     var body = 'success' + cnt;
                     cnt++;
-                    var newPush = push.writeHead(200,
+                    push.writeHead(200,
                         {
                             'Content-Type': 'text/html',
                             'Content-Length': body.length,
@@ -155,20 +153,15 @@ var tests = [
                         try {
                             var response = push.push("https://localhost:8080/" + testurl);
                             pushPull(response, 1000);
-                            console.log("Sending push: " + cnt);
                             setTimeout(function () {
                                 push.end(body);
                             }, 100);
                         } catch (e) {
                             if (e.message.includes('Sending illegal frame (PUSH_PROMISE) in CLOSED state')) {
-                                // BUG
                                 self.mappings[id] = 'FAILED, server closed PUSH PROMISE';
                             }
                         }
-                        // push.end(body);
                     }, pushTimeout);
-                    // push.end(body);
-
                 }
 
                 var body = 'success0';
@@ -190,23 +183,6 @@ var tests = [
 
 function getDate() {
     return new Date();
-}
-
-function sendFailure(request, response) {
-    var pathname = parseUrl(request.url).pathname;
-    console.log("got unexpected request indicating bug for:" + request.url);
-    // if (pathname.indexOf('test2result') > -1 || pathname.indexOf('test3result')) {
-        var message = 'FAIL / BUG (Ignored PUSH PROMISES!!)';
-        response.writeHead(200, {
-            'Content-Type': 'text/html',
-            'Content-Length': message.length
-        });
-        response.end(message);
-    // } else {
-    //     // error out
-    //     console.log("got unexpected request " + pathname);
-    //     throw new Error('this should be overloaded in all tests');
-    // }
 }
 
 http2.createServer(options, function (request, response) {
@@ -252,7 +228,13 @@ http2.createServer(options, function (request, response) {
             }
         }
         if (!success) {
-            sendFailure(request, response);
+            console.log("got unexpected request indicating bug for:" + request.url);
+            var message = 'FAIL / BUG (Ignored PUSH PROMISES!!)';
+            response.writeHead(200, {
+                'Content-Type': 'text/html',
+                'Content-Length': message.length
+            });
+            response.end(message);
         }
 
     }

@@ -214,18 +214,14 @@
                     //start test
                     var cnt = 0;
                     var interval = setInterval(function () {
-                        console.log(cnt);
-                        console.log("sending at interval: " + new Date());
                         var xhr = new XMLHttpRequest();
                         xhr.open("GET", testname + myTestID);
                         xhr.addEventListener("load", function () {
                             var result = xhr.responseText;
                             if (result !== 'success' + cnt) {
-                                console.log("clear interval 1");
                                 clearInterval(interval);
                                 document.getElementById('test4result').innerHTML = "FAIL (saw non updated response/stale-cache)";
                             } else if (cnt === 4) {
-                                console.log("clear interval 2");
                                 clearInterval(interval);
                                 document.getElementById('test4result').innerHTML = success;
                             }
