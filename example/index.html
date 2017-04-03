@@ -113,6 +113,7 @@
                     xhr.send();
                 }
 
+                // force a push or above twice, and then see which one we got
                 function forcePush(cnt) {
                     var xhr = new XMLHttpRequest();
                     xhr.open("GET", 'MAY_cancel_cache-able_push_promise_if_already_has_it_cached?id=' + myTestID);
@@ -132,8 +133,6 @@
 
             })();
         </script>
-
-
     </div>
     <div class="row row-striped">
         <div class="col-sm-7">
@@ -161,7 +160,6 @@
                     xhr.open("GET", 'SHOULD_bypass_cache_on_push_promise_with_no-cache' + myTestID);
                     xhr.addEventListener("load", function () {
                         var result = xhr.responseText;
-                        console.log("test 3 result: " + result);
                         if (result == 'success1') {
                             result = 'fail (it did not use second push promise)';
                         } else if (result == 'success2') {
@@ -172,8 +170,8 @@
                     xhr.send();
                 }
 
+                // force push twice, should see update
                 function forcePush(cnt) {
-                    console.log("test 3 request that should get a push: cnt: " + cnt);
                     var xhr = new XMLHttpRequest();
                     xhr.open("GET", 'SHOULD_bypass_cache_on_push_promise_with_no-cache?id=' + myTestID);
                     xhr.addEventListener("load", function () {
@@ -188,25 +186,58 @@
                     xhr.send();
                 }
 
-                console.log("test 3 starting");
                 forcePush(0);
             })();
         </script>
 
     </div>
-    <!--<div class="row row-striped">-->
-    <!--<div class="col-sm-7">-->
-    <!--<h3>SHOULD support "Long Push"</h3>-->
-    <!--</div>-->
-    <!--<div class="col-sm-5">-->
-    <!--<h3 id="test5result">pending</h3>-->
-    <!--</div>-->
-    <!--<script>-->
-    <!--/*-->
-    <!--* Not implemented yet-->
-    <!--*/-->
-    <!--</script>-->
-    <!--</div>-->
+    <div class="row row-striped">
+        <div class="col-sm-7">
+            <h3>SHOULD support "Long Push"</h3>
+        </div>
+        <div class="col-sm-5">
+            <h3 id="test4result">pending</h3>
+        </div>
+        <script>
+            (function () {
+                setTimeout(function () {
+                    var testname = 'SHOULD_support_Long_Push';
+
+                    function getRandomInt(min, max) {
+                        min = Math.ceil(min);
+                        max = Math.floor(max);
+                        return Math.floor(Math.random() * (max - min)) + min;
+                    }
+
+                    var myTestID = getRandomInt(0, 9999999);
+
+                    //start test
+                    var cnt = 0;
+                    var interval = setInterval(function () {
+                        console.log(cnt);
+                        console.log("sending at interval: " + new Date());
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("GET", testname + myTestID);
+                        xhr.addEventListener("load", function () {
+                            var result = xhr.responseText;
+                            if (result !== 'success' + cnt) {
+                                console.log("clear interval 1");
+                                clearInterval(interval);
+                                document.getElementById('test4result').innerHTML = "FAIL (saw non updated response/stale-cache)";
+                            } else if (cnt === 4) {
+                                console.log("clear interval 2");
+                                clearInterval(interval);
+                                document.getElementById('test4result').innerHTML = success;
+                            }
+                            cnt++;
+                        });
+                        xhr.send();
+                    }, 1000);
+                }, 3000);
+
+            })();
+        </script>
+    </div>
 </div>
 
 </body>

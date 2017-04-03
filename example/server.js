@@ -34,7 +34,7 @@ var tests = [
                 {
                     'Content-Type': 'text/html',
                     'Content-Length': body.length,
-                    'Cache-Control': 'no-store, max-age=5'
+                    'Cache-Control': 'max-age=5'
                 }
             );
             push.end(body);
@@ -64,13 +64,13 @@ var tests = [
                 {
                     'Content-Type': 'text/html',
                     'Content-Length': body.length,
-                    'Cache-Control': 'no-store, max-age=5',
+                    'Cache-Control': 'max-age=5',
                     'Date:': getDate()
                 }
             );
             push.end(body);
 
-            var message = 'sent push promises';
+            var message = 'should not display this message ever (this sent push)';
             response.writeHead(200, {
                 'Content-Type': 'text/html',
                 'Content-Length': message.length,
@@ -79,7 +79,6 @@ var tests = [
             response.end(message);
         }
     },
-
     {
         'name': 'SHOULD_bypass_cache_on_push_promise_with_no-cache',
         'mappings': {},
@@ -91,9 +90,10 @@ var tests = [
                 this.mappings[testId]++;
             }
             var body = 'success' + this.mappings[testId];
+            var pushPath = '/SHOULD_bypass_cache_on_push_promise_with_no-cache' + testId;
             var push = response.push(
                 {
-                    path: '/SHOULD_bypass_cache_on_push_promise_with_no-cache' + testId,
+                    path: pushPath,
                     headers: {'Cache-Control': 'no-cache'}
                 }
             );
@@ -103,14 +103,14 @@ var tests = [
                 {
                     'Content-Type': 'text/html',
                     'Content-Length': body.length,
-                    'Cache-Control': 'no-store, max-age=5',
+                    'Cache-Control': 'max-age=5',
                     'Date:': date
                 }
             );
-            console.log("sent push with date: " + date + " for /test3result_" + testId + " with body: " + body);
+            console.log("sent push with date: " + date + " for " + pushPath + " with body: " + body);
             push.end(body);
 
-            var message = 'sent push promises';
+            var message = 'should never display this message (sent push promise)';
             response.writeHead(200, {
                 'Content-Type': 'text/html',
                 'Content-Length': message.length,
@@ -118,11 +118,95 @@ var tests = [
             });
             response.end(message);
         }
+    },
+    {
+        'name': 'SHOULD_support_Long_Push',
+        'mappings': {},
+        'failMessage': 'failed (saw request it never should have)',
+        'run': function (request, response) {
+            console.log(request.url.replace(('/' + this.name), ''));
+            var id = request.url.replace('/' + this.name, '');
+            if (this.mappings[id]) {
+                response.writeHead(200, {
+                    'Content-Type': 'text/html',
+                    'Content-Length': this.failMessage.size
+                });
+                response.end(this.failMessage);
+            } else {
+                this.mappings[id] = true;
+
+                var self = this;
+
+                var testurl = '/' + this.name + id;
+                var cnt = 1;
+
+                function pushPull(push, pushTimeout) {
+                    var body = 'success' + cnt;
+                    cnt++;
+                    var newPush = push.writeHead(200,
+                        {
+                            'Content-Type': 'text/html',
+                            'Content-Length': body.length,
+                            'Cache-Control': 'max-age=5',
+                            'Date': new Date()
+                        }
+                    );
+                    setTimeout(function () {
+                        try {
+                            var response = push.push("https://localhost:8080/" + testurl);
+                            pushPull(response, 1000);
+                            console.log("Sending push: " + cnt);
+                            setTimeout(function () {
+                                push.end(body);
+                            }, 100);
+                        } catch (e) {
+                            if (e.message.includes('Sending illegal frame (PUSH_PROMISE) in CLOSED state')) {
+                                // BUG
+                                self.mappings[id] = 'FAILED, server closed PUSH PROMISE';
+                            }
+                        }
+                        // push.end(body);
+                    }, pushTimeout);
+                    // push.end(body);
+
+                }
+
+                var body = 'success0';
+                response.writeHead(200,
+                    {
+                        'Content-Type': 'text/html',
+                        'Content-Length': body.length,
+                        'Cache-Control': 'max-age=5',
+                        'Date': new Date()
+                    }
+                );
+                var push = response.push(this.name);
+                pushPull(push, 500);
+                response.end(body);
+            }
+        }
     }
 ];
 
 function getDate() {
     return new Date();
+}
+
+function sendFailure(request, response) {
+    var pathname = parseUrl(request.url).pathname;
+    console.log("got unexpected request indicating bug for:" + request.url);
+    // if (pathname.indexOf('test2result') > -1 || pathname.indexOf('test3result')) {
+        var message = 'FAIL / BUG (Ignored PUSH PROMISES!!)';
+        response.writeHead(200, {
+            'Content-Type': 'text/html',
+            'Content-Length': message.length
+        });
+        response.end(message);
+    // } else {
+    //     // error out
+    //     console.log("got unexpected request " + pathname);
+    //     throw new Error('this should be overloaded in all tests');
+    // }
 }
 
 http2.createServer(options, function (request, response) {
@@ -156,27 +240,19 @@ http2.createServer(options, function (request, response) {
         var success = false;
         var lengthI = tests.length;
         for (var i = 0; i < lengthI; i++) {
-            if ('/' + tests[i].name === pathname) {
-                console.log("Running test logic: " + tests[i].name);
-                tests[i].run(request, response);
-                success = true;
-                break;
+            if (pathname.indexOf('/' + tests[i].name) > -1) {
+                try {
+                    console.log("Running test logic: " + tests[i].name);
+                    tests[i].run(request, response);
+                    success = true;
+                    break;
+                } catch (e) {
+                    break;
+                }
             }
         }
         if (!success) {
-            console.log("got unexpected request indicating bug for:" + request.url);
-            if (pathname.indexOf('test2result') > -1 || pathname.indexOf('test3result')) {
-                var message = 'FAIL / BUG (Ignored PUSH PROMISES!!)';
-                response.writeHead(200, {
-                    'Content-Type': 'text/html',
-                    'Content-Length': message.length
-                });
-                response.end(message);
-            } else {
-                // error out
-                console.log("got unexpected request " + pathname);
-                throw new Error('this should be overloaded in all tests');
-            }
+            sendFailure(request, response);
         }
 
     }
