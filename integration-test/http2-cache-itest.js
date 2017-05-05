@@ -3,12 +3,8 @@ if (typeof exports !== 'undefined') {
     if (typeof XMLHttpRequest === 'undefined') {
         XMLHttpRequest = require("xhr2").XMLHttpRequest;
     }
-    if (typeof WebSocket === 'undefined') {
-        WebSocket = require('websocket').w3cwebsocket;
-    }
 } else {
     XMLHttpRequest = Window.XMLHttpRequest;
-    WebSocket = Window.WebSocket;
 }
 var assert = require('assert');
 /* jshint ignore:end */
@@ -26,7 +22,7 @@ describe('http2-proxy', function () {
             response.end(JSON.stringify({
                 'url': 'http://localhost:8080/',
                 'options': {
-                    'transport': 'ws://localhost:8080/'
+                    'transport': 'tcp://localhost:8080'
                 }
             }));
         });
@@ -37,30 +33,62 @@ describe('http2-proxy', function () {
         configServer.close(done);
     });
 
-    it('should.support.long.pushing', function (done) {
+    // it('should.support.long.pushing', function (done) {
+    //     XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
+    //
+    //     var cnt = 0;
+    //
+    //     var run = function () {
+    //         console.log("here " + cnt);
+    //         var xhr = new XMLHttpRequest();
+    //         xhr.addEventListener("load", function () {
+    //             cnt++;
+    //             console.log("DPW: here " + xhr.responseText);
+    //             if (cnt === 2) {
+    //                 // clearInterval(interval);
+    //                 done();
+    //             }else{
+    //                 run();
+    //             }
+    //         });
+    //         xhr.open("GET", "http://localhost:8080/");
+    //
+    //
+    //         xhr.subscribe(function () {
+    //             xhr.unsubscribe();
+    //             console.log("GOT A PUSH PROMISE!!");
+    //         });
+    //         xhr.send();
+    //
+    //
+    //     };
+    //     run();
+    //     // var interval = setInterval(run, 2000);
+    //
+    //
+    // });
+
+    it('should.cache.push.promise', function (done) {
         XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
 
-        var cnt = 0;
-
-        var run = function () {
-            var xhr = new XMLHttpRequest();
+        function fetchCachedPush() {
+            var xhr2 = new XMLHttpRequest();
+            xhr.open("GET", "http://localhost:8080/cached-data");
             xhr.addEventListener("load", function () {
-                cnt++;
-                console.log("here " + xhr.responseText);
-                if (cnt === 3) {
-                    clearInterval(interval);
-                    done();
-                }
+                console.log("DPW: here " + xhr.responseText);
+                done();
             });
-            xhr.open("GET", "http://localhost:8080/");
             xhr.send();
+        }
 
-        };
-        var interval = setInterval(run, 2000);
-
-
+        var xhr = new XMLHttpRequest();
+        xhr.addEventListener("load", function () {
+            console.log("DPW: here " + xhr.responseText);
+            fetchCachedPush();
+        });
+        xhr.open("GET", "http://localhost:8080/data");
+        xhr.send();
     });
-
 
 });
 

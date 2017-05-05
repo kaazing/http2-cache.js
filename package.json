@@ -4,9 +4,13 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
+    "preinstall" : "browserify lib/http2-cache.js -o ./builds/http2-cache.js",
     "lint": "jshint lib/*.js test/*.js integration-test/*.js",
     "pretest": "npm run lint",
     "test": "mocha",
+    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid start",
+    "integration-test": "mocha --ui /Users/David/Documents/projects/javascript-k3po/k3po-mocha.js/k3po-ui.js ./integration-test/*.js",
+    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid",
     "build": "npm run test",
     "prepublish": "npm run build"
   },
@@ -27,12 +31,14 @@
   },
   "homepage": "https://github.com/montagestudio/http2-cache#readme",
   "dependencies": {
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "http2": "https://github.com/dpwspoon/node-http2#http2ws",
     "websocket-stream": "3.3.3",
     "collections": "~5.0.x",
     "bluebird": "~3.4.x"
   },
   "devDependencies": {
+    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
     "jshint": "2.9.4",
     "browserify": "14.0.0 ",
     "xhr2": "0.1.4",

@@ -15,7 +15,7 @@
       <plugin>
         <groupId>org.kaazing</groupId>
         <artifactId>k3po-maven-plugin</artifactId>
-        <version>3.0.0-alpha-54</version>
+        <version>3.0.0-alpha-66</version>
         <executions>
           <execution>
             <goals>
@@ -28,7 +28,7 @@
           <dependency>
             <groupId>org.kaazing</groupId>
             <artifactId>specification.ws</artifactId>
-            <version>3.0.0-alpha-54</version>
+            <version>3.0.0-alpha-66</version>
           </dependency>
 
         </dependencies>
