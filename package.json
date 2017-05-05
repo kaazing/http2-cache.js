@@ -4,15 +4,10 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "preinstall" : "browserify lib/http2-cache.js -o ./builds/http2-cache.js",
     "lint": "jshint lib/*.js test/*.js integration-test/*.js",
     "pretest": "npm run lint",
     "test": "mocha",
-    "preintegration-test": "node ./integration-test/reaktivity/reactivity.js start && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid start",
-    "integration-test": "mocha --ui /Users/David/Documents/projects/javascript-k3po/k3po-mocha.js/k3po-ui.js ./integration-test/*.js",
-    "postintegration-test": "node ./integration-test/reaktivity/reactivity.js stop && node ./node_modules/k3po-exec/k3po-exec.js --pom ./integration-test/k3po/pom.xml --log ./builds/integration-test/k3po-test.log --pidFile ./builds/integration-test/k3po-test.pid",
-    "build": "npm run test",
-    "prepublish": "npm run build"
+    "build": "npm run test"
   },
   "repository": {
     "type": "git",
