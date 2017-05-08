@@ -22,7 +22,8 @@ describe('http2-proxy', function () {
             response.end(JSON.stringify({
                 'url': 'http://localhost:8080/',
                 'options': {
-                    'transport': 'tcp://localhost:8080'
+                    'transport': 'tcp://localhost:8080',
+                    'debug': 'true'
                 }
             }));
         });
@@ -38,7 +39,7 @@ describe('http2-proxy', function () {
 
         function fetchCachedPush() {
             var xhr = new XMLHttpRequest();
-            xhr.open("GET", "http://localhost:8080/cached-data");
+            xhr.open("GET", "http://localhost:8080/");
             xhr.addEventListener("load", function () {
                 console.log("DPW: here " + xhr.responseText);
                 done();
