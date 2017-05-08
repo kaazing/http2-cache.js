@@ -33,46 +33,11 @@ describe('http2-proxy', function () {
         configServer.close(done);
     });
 
-    // it('should.support.long.pushing', function (done) {
-    //     XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
-    //
-    //     var cnt = 0;
-    //
-    //     var run = function () {
-    //         console.log("here " + cnt);
-    //         var xhr = new XMLHttpRequest();
-    //         xhr.addEventListener("load", function () {
-    //             cnt++;
-    //             console.log("DPW: here " + xhr.responseText);
-    //             if (cnt === 2) {
-    //                 // clearInterval(interval);
-    //                 done();
-    //             }else{
-    //                 run();
-    //             }
-    //         });
-    //         xhr.open("GET", "http://localhost:8080/");
-    //
-    //
-    //         xhr.subscribe(function () {
-    //             xhr.unsubscribe();
-    //             console.log("GOT A PUSH PROMISE!!");
-    //         });
-    //         xhr.send();
-    //
-    //
-    //     };
-    //     run();
-    //     // var interval = setInterval(run, 2000);
-    //
-    //
-    // });
-
     it('should.cache.push.promise', function (done) {
         XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
 
         function fetchCachedPush() {
-            var xhr2 = new XMLHttpRequest();
+            var xhr = new XMLHttpRequest();
             xhr.open("GET", "http://localhost:8080/cached-data");
             xhr.addEventListener("load", function () {
                 console.log("DPW: here " + xhr.responseText);

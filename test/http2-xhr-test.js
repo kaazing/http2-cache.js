@@ -13,6 +13,7 @@ describe('H2 XHR', function () {
     var config1 = {
         'url': 'http://cache-endpoint1/',
         'options': {
+            // 'debug': true,
             'transport': 'ws://localhost:7081/',
             'h2PushPath': 'stream'
         }
@@ -21,8 +22,10 @@ describe('H2 XHR', function () {
     var config2 = {
         'url': 'https://cache-endpoint2/',
         'options': {
+            // 'debug': true,
             'transport': 'ws://localhost:7082/path'
         }
+
     };
 
     var configServer;

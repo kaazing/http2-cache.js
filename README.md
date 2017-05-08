@@ -97,8 +97,4 @@ Visit page `https://localhost:8080/` (Note: need to trust TLS cert)
 
 ### Integration Tests
 
-TODO -- These tests are not complete.
-
-The integration tests implement a test for HTTP/2 Long Pushing with cache-able content by defining
-the bytes on the wire.  Any server that follows emulates that wire protocol should be compatible
-with this client library.  
+TODO -- These tests are not complete. 
