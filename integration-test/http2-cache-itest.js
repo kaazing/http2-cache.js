@@ -78,5 +78,28 @@ describe('http2-proxy', function () {
         xhr.send();
     });
 
+    // it('should.poll.and.get.h2.push', function (done) {
+    //     XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
+    //
+    //     // function fetchSecondTime() {
+    //     //     var xhr = new XMLHttpRequest();
+    //     //     xhr.open("GET", "http://localhost:8080/data");
+    //     //     xhr.addEventListener("load", function () {
+    //     //         console.log("DPW: here " + xhr.responseText);
+    //     //         done();
+    //     //     });
+    //     //     xhr.send();
+    //     // }
+    //
+    //     var xhr = new XMLHttpRequest();
+    //     xhr.addEventListener("load", function () {
+    //         console.log("DPW: here " + xhr.responseText);
+    //         // fetchSecondTime();
+    //     });
+    //     xhr.open("GET", "http://localhost:8080/data");
+    //     xhr.setRequestHeader("x-poll-interval", "2");
+    //     xhr.send();
+    // });
+
 });
 
