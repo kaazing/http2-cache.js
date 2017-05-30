@@ -11,29 +11,11 @@
 var os = require('os');
 var platform = os.platform();
 
-if (platform === 'darwin' || platform == 'linux') {
+if (platform === 'darwin' || platform == 'linux' || platform === 'win32') {
   // Call child process and execute
   var exec = require('child_process').exec;
 
-  exec('node node_modules/browserify/bin/cmd.js ./lib/http2-cache.js -o ./index.js', function (error, stdout, stderr) {
-    console.log('Browserify dependencies');
-
-    if (stdout) {
-      console.log(stdout); 
-    }
-
-    if (error !== null) {
-      console.log(error);
-    } else {
-      console.log('Browserify was successful.');
-    }
-  });
-
-  return;
-} else if (platform === 'win32') {
-  var exec = require('child_process').exec;
-
-  exec('node.exe node_modules/browserify/bin/cmd.js ./lib/http2-cache.js -o ./index.js', function (error, stdout, stderr) {
+  exec('browserify ./lib/http2-cache.js -o ./index.js', function (error, stdout, stderr) {
     console.log('Browserify dependencies');
 
     if (stdout) {
