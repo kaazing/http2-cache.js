@@ -22,3 +22,4 @@ TEST-*.xml
 # Run-time generated files that shouldn't be committed.
 node_modules
 npm-debug.log
+index.js
