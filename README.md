@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/montagestudio/http2-cache.js.svg?branch=master)](http://travis-ci.org/montagestudio/http2-cache.js)
+
 # http2-cache.js
 
 #### This library is pre 1.0.0, much of the functionality is not yet fully implemented.
