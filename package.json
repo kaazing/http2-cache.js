@@ -8,7 +8,7 @@
     "pretest": "npm run lint",
     "test": "mocha",
     "build": "npm run test",
-    "postinstall": "./node_modules/browserify/bin/cmd.js ./lib/http2-cache.js -o ./index.js"
+    "postinstall": "browserify ./lib/http2-cache.js -o ./index.js"
   },
   "repository": {
     "type": "git",
