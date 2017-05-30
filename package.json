@@ -31,6 +31,7 @@
   },
   "homepage": "https://github.com/montagestudio/http2-cache#readme",
   "dependencies": {
+    "browserify": "14.0.0 ",
     "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "http2": "https://github.com/dpwspoon/node-http2#http2ws",
     "websocket-stream": "3.3.3",
@@ -40,7 +41,6 @@
   "devDependencies": {
     "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
     "jshint": "2.9.4",
-    "browserify": "14.0.0 ",
     "xhr2": "0.1.4",
     "spdy": "3.4.4 ",
     "sinon": "1.17.7",
