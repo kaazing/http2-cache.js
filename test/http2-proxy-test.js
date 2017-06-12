@@ -115,6 +115,12 @@ describe('H2 Proxy', function () {
         );
     });
 
+    it('proxy() with invalid params throws exception', function () {
+        assert.throws(function () {
+            XMLHttpRequest.proxy([1]);
+        });
+    });
+
     it('should load config and start stream for pushs when h2PushPath is set in config', function (done) {
         s1OnRequest = function (request) {
             assert.equal(request.url, 'stream', 'should be on streaming url');
@@ -140,6 +146,24 @@ describe('H2 Proxy', function () {
             throw "should never be here";
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1", "http://localhost:7080/config2"]);
+    });
+
+    it('should load inline configs', function (done) {
+        s1OnRequest = function () {
+            throw "should never be here";
+        };
+        s2OnRequest = function () {
+            throw "should never be here";
+        };
+        XMLHttpRequest.proxy([
+            {
+                'url': 'https://cache-endpoint2/',
+                'options': {
+                    'transport': 'ws://localhost:7082/path'
+                }
+            }
+        ]);
+        done();
     });
 
 });

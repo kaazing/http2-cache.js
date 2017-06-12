@@ -24,7 +24,6 @@ describe('H2 XHR', function () {
         'options': {
             'transport': 'ws://localhost:7082/path',
         }
-
     };
 
     var configServer;
