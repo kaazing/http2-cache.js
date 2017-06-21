@@ -1,3 +1,4 @@
+/*jshint node:true, browser:false */
 /* jshint ignore:start */
 XMLHttpRequest = require("xhr2").XMLHttpRequest;
 /* jshint ignore:end */
@@ -30,6 +31,7 @@ describe('H2 XHR', function () {
 
     before(function (done) {
         configServer = http.createServer(function (request, response) {
+
             var path = request.url;
             if (path === '/config1') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
@@ -37,7 +39,6 @@ describe('H2 XHR', function () {
             } else if (path === '/config2') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config2));
-
             } else {
                 console.warn("Request for unknown path: " + path);
                 response.writeHead(404);
@@ -178,6 +179,49 @@ describe('H2 XHR', function () {
 
     });
 
+    it('should proxy POST request with event listeners', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        s2OnRequest = function (request, response) {
+
+            var body = [];
+            request.on('data', function(chunk) {
+              body.push(chunk);
+            }).on('end', function() {
+
+                // at this point, `body` has the entire request body stored in it as a string
+                body = Buffer.concat(body).toString();
+
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/payload');
+                assert.equal(request.method, 'POST');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', 'private, max-age=0');
+                response.write(body);
+                response.end();
+            });
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        var xhr = new XMLHttpRequest();
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                    xhr.onloadend = function () {
+                        assert.equal(xhr.response, message);
+                        done();
+                    };
+                };
+            };
+        };
+
+        xhr.open('POST', 'https://cache-endpoint2/payload', true);
+
+        xhr.send(message);
+
+    });
 
     it('should not proxy different origin GET requests', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
