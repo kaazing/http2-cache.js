@@ -1,4 +1,5 @@
-/*jshint node:true, browser:false */
+/* global console */
+
 /* jshint ignore:start */
 XMLHttpRequest = require("xhr2").XMLHttpRequest;
 /* jshint ignore:end */
