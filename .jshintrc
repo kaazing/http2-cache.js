@@ -120,7 +120,7 @@
     "globals": {
 
       "WebSocket": false,
-
+      "Buffer": false,
       "require": false,
       "exports": false,
       "module": false,

@@ -1,3 +1,6 @@
+/* global console */
+
+
 /* jshint ignore:start */
 if (typeof exports !== 'undefined') {
     if (typeof XMLHttpRequest === 'undefined') {
@@ -6,8 +9,9 @@ if (typeof exports !== 'undefined') {
 } else {
     XMLHttpRequest = Window.XMLHttpRequest;
 }
-var assert = require('assert');
 /* jshint ignore:end */
+
+var assert = require('assert');
 var http = require('http');
 
 require("../lib/http2-cache.js");
