@@ -8,6 +8,7 @@ require("../lib/http2-cache");
 var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),
+    createServer = require('../lib/server').createServer,
     getWSTransportServer = require('./test-utils').getWSTransportServer;
 
 describe('H2 XHR', function () {
@@ -79,13 +80,13 @@ describe('H2 XHR', function () {
         }
 
         // start config1 http2 server
-        s1 = http2.raw.createServer(getWSTransportServer(), function (request, response) {
+        s1 = createServer(getWSTransportServer(), function (request, response) {
             s1OnRequest(request, response);
         });
         s1.listen(7081, doneOn2);
 
         // start config2 http2 server
-        s2 = http2.raw.createServer(getWSTransportServer(), function (request, response) {
+        s2 = createServer(getWSTransportServer(), function (request, response) {
             s2OnRequest(request, response);
         });
         s2.listen(7082, doneOn2);

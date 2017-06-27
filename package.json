@@ -31,12 +31,12 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
+    "bluebird": "~3.4.x",
     "browserify": "14.0.0 ",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
-    "http2": "https://github.com/dpwspoon/node-http2#http2ws",
-    "websocket-stream": "3.3.3",
     "collections": "~5.0.x",
-    "bluebird": "~3.4.x"
+    "http2": "^3.3.6",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "websocket-stream": "3.3.3"
   },
   "devDependencies": {
     "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",

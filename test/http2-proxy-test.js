@@ -5,6 +5,7 @@ XMLHttpRequest = require("xhr2").XMLHttpRequest;
 /* jshint ignore:end */
 require("../lib/http2-cache");
 var assert = require('assert'),
+    createServer = require('../lib/server').createServer,
     http = require('http'),
     http2 = require('http2'),
     getWSTransportServer = require('./test-utils.js').getWSTransportServer;
@@ -77,13 +78,13 @@ describe('H2 Proxy', function () {
         }
 
         // start config1 http2 server
-        s1 = http2.raw.createServer(getWSTransportServer(), function (request, response) {
+        s1 = createServer(getWSTransportServer(), function (request, response) {
             s1OnRequest(request, response);
         });
         s1.listen(7081, doneOn2);
 
         // start config2 http2 server
-        s2 = http2.raw.createServer(getWSTransportServer(), function (request, response) {
+        s2 = createServer(getWSTransportServer(), function (request, response) {
             s2OnRequest(request, response);
         });
         s2.listen(7082, doneOn2);
