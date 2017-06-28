@@ -7,7 +7,7 @@
     "lint": "jshint lib/*.js test/*.js integration-test/*.js",
     "pretest": "npm run lint",
     "test": "mocha",
-    "build": "npm run test",
+    "build": "npm run test && node postinstall.js",
     "postinstall": "node postinstall.js"
   },
   "repository": {
