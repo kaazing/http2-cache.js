@@ -4,6 +4,7 @@
 XMLHttpRequest = require("xhr2").XMLHttpRequest;
 /* jshint ignore:end */
 require("../lib/http2-cache");
+
 var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),

@@ -8,7 +8,9 @@ require("../lib/http2-cache");
 var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),
-    getWSTransportServer = require('./test-utils').getWSTransportServer;
+    getWSTransportServer = require('./test-utils').getWSTransportServer,
+    generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
+    lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
 describe('H2 XHR', function () {
 
@@ -390,19 +392,19 @@ describe('H2 XHR', function () {
     });
 
     it('should cache GET request and reuse for response larger than MAX_PAYLOAD_SIZE', function (done) {
+
         var requestCount = 0;
         var MAX_PAYLOAD_SIZE = 4096;
 
-        // TODO settting large than MAX_PAYLOAD_SIZE
-        var size = 4096;
-        var message = new Array(size + 1).join("0");
+        var length = MAX_PAYLOAD_SIZE * 5;
+        var message = generateRandAlphaNumStr(length);
 
         s2OnRequest = function (request, response) {
             if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetLargeRequest');
                 response.setHeader('Content-Type', 'text/html');
-                response.setHeader('Content-Length', message.length);
+                response.setHeader('Content-Length', lengthInUtf8Bytes(message));
                 response.setHeader('Cache-Control', 'private, max-age=5');
                 response.write(message);
                 response.end();
@@ -416,15 +418,9 @@ describe('H2 XHR', function () {
         var statechanges = 0;
         firstRequest.onreadystatechange = function () {
             ++statechanges;
-            if(statechanges !== 1) {
-                assert.equal(statechanges, firstRequest.readyState);
-            }
             if (firstRequest.readyState >= 2) {
                 assert.equal(firstRequest.status, 200);
                 assert.equal(firstRequest.statusText, "OK");
-            }
-            if (firstRequest.readyState >= 3) {
-                console.log(statechanges, firstRequest.response.length);
             }
             if (firstRequest.readyState === 4 && firstRequest.status === 200) {
                 var secondRequest = new XMLHttpRequest();
@@ -439,11 +435,9 @@ describe('H2 XHR', function () {
                         assert.equal(secondRequest.status, 200);
                         assert.equal(secondRequest.statusText, "OK");
                     }
-                    if (secondRequest.readyState >= 3) {
-                        console.log(statechanges2, secondRequest.response.length);
-                    }
                     if (secondRequest.readyState === 4 && secondRequest.status === 200) {
-                        assert.equal(secondRequest.response, message);
+                        //console.log(secondRequest.responseText);
+                        assert.equal(secondRequest.responseText, message);
                         assert.equal(secondRequest.response.length, message.length);
                         done();
                     }
