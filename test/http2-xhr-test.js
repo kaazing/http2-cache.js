@@ -451,5 +451,4 @@ describe('H2 XHR', function () {
 
         firstRequest.send(null);
     });
-
 });

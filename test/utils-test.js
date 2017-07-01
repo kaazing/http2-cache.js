@@ -2,8 +2,7 @@
 var mergeTypedArrays = require('../lib/utils').mergeTypedArrays,
 	Utf8ArrayToStr = require('../lib/utils').Utf8ArrayToStr,
     unicodeStringToTypedArray = require('./test-utils').unicodeStringToTypedArray,
-    generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
-    lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
+    generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr;
 
 var assert = require('assert');
 
@@ -28,4 +27,3 @@ describe('utils', function () {
 	    });
 	});
 });
-
