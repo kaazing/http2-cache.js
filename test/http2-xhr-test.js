@@ -8,7 +8,9 @@ require("../lib/http2-cache");
 var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),
-    getWSTransportServer = require('./test-utils').getWSTransportServer;
+    getWSTransportServer = require('./test-utils').getWSTransportServer,
+    generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
+    lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
 describe('H2 XHR', function () {
 
@@ -386,7 +388,69 @@ describe('H2 XHR', function () {
         firstRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
 
         firstRequest.send(null);
-
     });
 
+    it('should cache GET request and support Deprecated Header', function (done) {
+
+        var requestCount = 0;
+        var MAX_PAYLOAD_SIZE = 4096;
+
+        var length = MAX_PAYLOAD_SIZE;
+        var message = generateRandAlphaNumStr(length);
+
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetLargeRequest');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', lengthInUtf8Bytes(message));
+                response.setHeader('Cache-Control', 'private, max-age=5');
+
+                response.allowDeprecatedHeaders = true;
+                response.setHeader('Connection', 'Keep-Alive');
+                response.write(message);
+                response.end();
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                var secondRequest = new XMLHttpRequest();
+
+                var statechanges2 = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechanges2;
+                    if(statechanges2 !== 1) {
+                        assert.equal(statechanges2, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        //console.log(secondRequest.responseText);
+                        assert.equal(secondRequest.responseText, message);
+                        assert.equal(secondRequest.response.length, message.length);
+                        done();
+                    }
+                };
+                secondRequest.open('GET', 'https://cache-endpoint2/cachedGetLargeRequest', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'https://cache-endpoint2/cachedGetLargeRequest', true);
+
+        firstRequest.send(null);
+    });
 });
