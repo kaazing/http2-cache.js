@@ -9,7 +9,9 @@ var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),
     createServer = require('../lib/server').createServer,
-    getWSTransportServer = require('./test-utils').getWSTransportServer;
+    getWSTransportServer = require('./test-utils').getWSTransportServer,
+    generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
+    lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
 describe('H2 XHR', function () {
 
@@ -387,7 +389,5 @@ describe('H2 XHR', function () {
         firstRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
 
         firstRequest.send(null);
-
     });
-
 });
