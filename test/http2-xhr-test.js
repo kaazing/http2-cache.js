@@ -396,7 +396,7 @@ describe('H2 XHR', function () {
         var requestCount = 0;
         var MAX_PAYLOAD_SIZE = 4096;
 
-        var length = MAX_PAYLOAD_SIZE * 5;
+        var length = MAX_PAYLOAD_SIZE * 50;
         var message = generateRandAlphaNumStr(length);
 
         s2OnRequest = function (request, response) {
@@ -416,11 +416,18 @@ describe('H2 XHR', function () {
         var firstRequest = new XMLHttpRequest();
 
         var statechanges = 0;
+        var loadingchanges = 0,
+            framesSizes = [];
         firstRequest.onreadystatechange = function () {
             ++statechanges;
             if (firstRequest.readyState >= 2) {
                 assert.equal(firstRequest.status, 200);
                 assert.equal(firstRequest.statusText, "OK");
+            }
+
+            if (firstRequest.readyState === 3) {
+                framesSizes.push(firstRequest.responseText.length);
+                loadingchanges++;
             }
             if (firstRequest.readyState === 4 && firstRequest.status === 200) {
                 var secondRequest = new XMLHttpRequest();
@@ -435,6 +442,16 @@ describe('H2 XHR', function () {
                         assert.equal(secondRequest.status, 200);
                         assert.equal(secondRequest.statusText, "OK");
                     }
+                    // Expect cached frame and to only append once
+                    if (secondRequest.readyState === 3) {
+
+                        // Should match last decoded size from firstRequest
+                        assert.equal(framesSizes[loadingchanges - 1], secondRequest.responseText.length);
+
+                        // Catch double secondRequest.readyState === 3 by making test above fail subsequently
+                        loadingchanges = -1;
+                    }
+
                     if (secondRequest.readyState === 4 && secondRequest.status === 200) {
                         assert.equal(secondRequest.responseText, message);
                         assert.equal(secondRequest.responseText.length, message.length);
