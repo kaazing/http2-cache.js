@@ -436,9 +436,9 @@ describe('H2 XHR', function () {
                         assert.equal(secondRequest.statusText, "OK");
                     }
                     if (secondRequest.readyState === 4 && secondRequest.status === 200) {
-                        //console.log(secondRequest.responseText);
                         assert.equal(secondRequest.responseText, message);
-                        assert.equal(secondRequest.response.length, message.length);
+                        assert.equal(secondRequest.responseText.length, message.length);
+                        assert.equal(secondRequest.response, secondRequest.responseText);
                         done();
                     }
                 };
