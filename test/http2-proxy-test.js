@@ -145,17 +145,17 @@ describe('H2 Proxy', function () {
             done();
         };
         s2OnRequest = function () {
-            throw "should never be here";
+            throw new Error("should never be here");
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1", "http://localhost:7080/config2"]);
     });
 
     it('should load inline configs', function (done) {
         s1OnRequest = function () {
-            throw "should never be here";
+            throw new Error("should never be here");
         };
         s2OnRequest = function () {
-            throw "should never be here";
+            throw new Error("should never be here");
         };
         XMLHttpRequest.proxy([
             {
@@ -168,4 +168,20 @@ describe('H2 Proxy', function () {
         done();
     });
 
+    it('should expose current configuration', function (done) {
+        s1OnRequest = function (request) {
+            assert.equal(request.url, 'stream', 'should be on streaming url');
+            done();
+        };
+        s2OnRequest = function () {
+            throw new Error("should never be here");
+        };
+        XMLHttpRequest.configuration.addConfig({
+            'url': 'http://cache-endpoint1/',
+            'options': {
+                'transport': 'ws://localhost:7081/',
+                'h2PushPath': 'stream'
+            }
+        });
+    });
 });
