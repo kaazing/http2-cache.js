@@ -15,19 +15,14 @@ var assert = require('assert'),
 describe('H2 XHR', function () {
 
     var config1 = {
-        'url': 'http://cache-endpoint1/',
-        'options': {
-
-            'transport': 'ws://localhost:7081/',
-            'h2PushPath': 'stream'
-        }
+        'pushURL': 'http://cache-endpoint1/stream',
+        'transport': 'ws://localhost:7081/',
+        'proxy': ['http://cache-endpoint1/']
     };
 
     var config2 = {
-        'url': 'https://cache-endpoint2/',
-        'options': {
-            'transport': 'ws://localhost:7082/path',
-        }
+        'transport': 'ws://localhost:7082/path',
+        'proxy': ['http://cache-endpoint2/']
     };
 
     var configServer;
@@ -143,7 +138,7 @@ describe('H2 XHR', function () {
                 done();
             }
         };
-        xhr.open('GET', 'https://cache-endpoint2/path', true);
+        xhr.open('GET', 'http://cache-endpoint2/path', true);
 
         xhr.send(null);
 
@@ -176,7 +171,7 @@ describe('H2 XHR', function () {
             };
         };
 
-        xhr.open('GET', 'https://cache-endpoint2/withListeners', true);
+        xhr.open('GET', 'http://cache-endpoint2/withListeners', true);
 
         xhr.send(null);
 
@@ -220,7 +215,7 @@ describe('H2 XHR', function () {
             };
         };
 
-        xhr.open('POST', 'https://cache-endpoint2/payload', true);
+        xhr.open('POST', 'http://cache-endpoint2/payload', true);
 
         xhr.send(message);
 
@@ -285,9 +280,10 @@ describe('H2 XHR', function () {
         var message = "Affirmative, Dave. I read you. ";
         var xhr = new XMLHttpRequest();
         s1OnRequest = function (request, response) {
-            assert.equal(request.url, 'stream', 'should be on streaming url');
+            assert.equal(request.url, '/stream', 'should be on streaming url');
             var pr = response.push({
-                'path': '/pushedCache1'
+                'path': '/pushedCache1',
+                'protocol': 'http'
             });
             pr.setHeader('Content-Type', 'text/html');
             pr.setHeader('Content-Length', message.length);
@@ -381,11 +377,11 @@ describe('H2 XHR', function () {
                         done();
                     }
                 };
-                secondRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
+                secondRequest.open('GET', 'http://cache-endpoint2/cachedGetRequest', true);
                 secondRequest.send(null);
             }
         };
-        firstRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
+        firstRequest.open('GET', 'http://cache-endpoint2/cachedGetRequest', true);
 
         firstRequest.send(null);
     });
