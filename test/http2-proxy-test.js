@@ -12,19 +12,20 @@ var assert = require('assert'),
 describe('H2 Proxy', function () {
 
     var config1 = {
-        'url': 'http://cache-endpoint1/',
-        'options': {
-            'transport': 'ws://localhost:7081/',
-            'h2PushPath': 'stream'
-        }
+        'transport': 'ws://localhost:7081/',
+        'pushURL': 'http://cache-endpoint1/stream',
+        'proxy': [
+            'http://cache-endpoint1/'
+        ]
     };
 
     var config2 = {
-        'url': 'https://cache-endpoint2/',
-        'options': {
-            'transport': 'ws://localhost:7082/path'
-        }
+        'transport': 'ws://localhost:7082/path',
+        'proxy': [
+            'http://cache-endpoint2/'
+        ]
     };
+
     // serves the config files
     var configServer;
 
@@ -112,7 +113,7 @@ describe('H2 Proxy', function () {
 
     it('proxy() with no arrays throws exception', function () {
         assert.throws(function () {
-                XMLHttpRequest.proxy("https://url");
+                XMLHttpRequest.proxy("http://url");
             }
         );
     });
@@ -125,7 +126,7 @@ describe('H2 Proxy', function () {
 
     it('should load config and start stream for pushs when h2PushPath is set in config', function (done) {
         s1OnRequest = function (request) {
-            assert.equal(request.url, 'stream', 'should be on streaming url');
+            assert.equal(request.url, '/stream', 'should be on streaming url');
             done();
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
@@ -133,7 +134,7 @@ describe('H2 Proxy', function () {
 
     it('should load config 2 and start stream for pushs when h2PushPath is set in config', function (done) {
         s1OnRequest = function (request) {
-            assert.equal(request.url, 'stream', 'should be on streaming url');
+            assert.equal(request.url, '/stream', 'should be on streaming url');
             done();
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
@@ -141,7 +142,7 @@ describe('H2 Proxy', function () {
 
     it('should load multiple configs', function (done) {
         s1OnRequest = function (request) {
-            assert.equal(request.url, 'stream', 'should be on streaming url');
+            assert.equal(request.url, '/stream', 'should be on streaming url');
             done();
         };
         s2OnRequest = function () {
@@ -157,31 +158,33 @@ describe('H2 Proxy', function () {
         s2OnRequest = function () {
             throw new Error("should never be here");
         };
-        XMLHttpRequest.proxy([
-            {
-                'url': 'https://cache-endpoint2/',
-                'options': {
-                    'transport': 'ws://localhost:7082/path'
+        XMLHttpRequest.proxy(
+            [
+                {
+                    'transport': 'ws://localhost:7082/path',
+                    'proxy': [
+                        'http://cache-endpoint2/'
+                    ]
                 }
-            }
-        ]);
+            ]
+        );
         done();
     });
 
     it('should expose current configuration', function (done) {
         s1OnRequest = function (request) {
-            assert.equal(request.url, 'stream', 'should be on streaming url');
+            assert.equal(request.url, '/stream', 'should be on streaming url');
             done();
         };
         s2OnRequest = function () {
             throw new Error("should never be here");
         };
         XMLHttpRequest.configuration.addConfig({
-            'url': 'http://cache-endpoint1/',
-            'options': {
-                'transport': 'ws://localhost:7081/',
-                'h2PushPath': 'stream'
-            }
+            'transport': 'ws://localhost:7081/',
+            'pushURL': 'http://cache-endpoint1/stream',
+            'proxy': [
+                'http://cache-endpoint1/'
+            ]
         });
     });
 });
