@@ -283,7 +283,7 @@ describe('H2 XHR', function () {
             assert.equal(request.url, '/stream', 'should be on streaming url');
             var pr = response.push({
                 'path': '/pushedCache1',
-                'protocol': 'http'
+                'protocol': 'http:'
             });
             pr.setHeader('Content-Type', 'text/html');
             pr.setHeader('Content-Length', message.length);
