@@ -320,7 +320,6 @@ describe('H2 XHR', function () {
                 }
             };
             xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
-            console.log("DPW subscribing!!");
             // There is a race between xhr.js and push with out subscribe
             xhr.subscribe(function () {
                 xhr.unsubscribe();
