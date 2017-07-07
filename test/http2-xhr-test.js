@@ -17,12 +17,18 @@ describe('H2 XHR', function () {
     var config1 = {
         'pushURL': 'http://cache-endpoint1/stream',
         'transport': 'ws://localhost:7081/',
-        'proxy': ['http://cache-endpoint1/']
+        'proxy': [
+            'http://cache-endpoint1/',
+            'http://cache-endpoint4/'
+        ]
     };
 
     var config2 = {
         'transport': 'ws://localhost:7082/path',
-        'proxy': ['http://cache-endpoint2/']
+        'proxy': [
+            'http://cache-endpoint2/',
+            'http://cache-endpoint3/'
+        ]
     };
 
     var configServer;
