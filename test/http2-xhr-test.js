@@ -187,6 +187,11 @@ describe('H2 XHR', function () {
         var message = "Hello, Dave. You're looking well today.";
         s2OnRequest = function (request, response) {
 
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/payload');
+            assert.equal(request.headers['content-type'], 'application/x-www-form-urlencoded');
+            assert.equal(request.method, 'POST');
+            
             var body = [];
             request.on('data', function(chunk) {
               body.push(chunk);
@@ -195,9 +200,6 @@ describe('H2 XHR', function () {
                 // at this point, `body` has the entire request body stored in it as a string
                 body = Buffer.concat(body).toString();
 
-                // TODO check request headers and requests responses
-                assert.equal(request.url, '/payload');
-                assert.equal(request.method, 'POST');
                 response.setHeader('Content-Type', 'text/html');
                 response.setHeader('Content-Length', message.length);
                 response.setHeader('Cache-Control', 'private, max-age=0');
@@ -222,7 +224,7 @@ describe('H2 XHR', function () {
         };
 
         xhr.open('POST', 'http://cache-endpoint2/payload', true);
-
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.send(message);
 
     });
