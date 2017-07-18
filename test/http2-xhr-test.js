@@ -31,6 +31,14 @@ describe('H2 XHR', function () {
         ]
     };
 
+    var config3 = {
+        'transport': 'ws://localhost:7082/path',
+        'proxy': [
+            'http://cache-endpoint3/path',
+            'http://cache-endpoint3/notpath/proxyfied',
+        ]
+    };
+
     var configServer;
 
     before(function (done) {
@@ -42,7 +50,10 @@ describe('H2 XHR', function () {
                 response.end(JSON.stringify(config1));
             } else if (path === '/config2') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
-                response.end(JSON.stringify(config2));
+                response.end(JSON.stringify(config2));  
+            } else if (path === '/config3') {
+                response.writeHead(200, {'Content-Type': 'application/json'});
+                response.end(JSON.stringify(config3));
             } else {
                 console.warn("Request for unknown path: " + path);
                 response.writeHead(404);
@@ -65,11 +76,11 @@ describe('H2 XHR', function () {
     beforeEach(function (done) {
         // starts the 2 h2overWs servers
         s1OnRequest = function (request, response) {
-            throw "Unexpected event: " + request + " " + response;
+            throw new Error("Unexpected event: " + request + " " + response);
         };
 
         s2OnRequest = function (request, response) {
-            throw "Unexpected event " + request + " " + response;
+            throw new Error("Unexpected event " + request + " " + response);
         };
 
         var completed = 0;
@@ -147,7 +158,90 @@ describe('H2 XHR', function () {
         xhr.open('GET', 'http://cache-endpoint2/path', true);
 
         xhr.send(null);
+    });
 
+    it('should proxy GET request for path match', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        s2OnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/path');
+            response.setHeader('Content-Type', 'text/html');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.write(message);
+            response.end();
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !==1 is due to bug
+            if(statechanges !== 1){
+                assert.equal(statechanges, xhr.readyState);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+            // TODO assert message
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint3/path', true);
+
+        xhr.send(null);
+    });
+
+    it('should NOT proxy GET request with no path match', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        s1OnRequest = function (request, response) {
+            assert.equal(request.url, '/notpath');
+            response.setHeader('Content-Type', 'text/html');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.write(message);
+            response.end();
+        };
+
+        s2OnRequest = function (request, response) {
+            throw new Error("Unexpected event " + request + " " + response);
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            console.log(xhr);
+            ++statechanges;
+            // TODO !==1 is due to bug
+            if(statechanges !== 1){
+                assert.equal(statechanges, xhr.readyState);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+            // TODO assert message
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint3/notpath', true);
+
+        xhr.send(null);
     });
 
     it('should proxy GET request with event listeners', function (done) {
