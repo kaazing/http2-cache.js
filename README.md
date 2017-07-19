@@ -48,10 +48,14 @@ The `proxy([urls of configurations])` triggers fetching of JSON configurations o
 server.  The configurations should be of the following form:
 
 ```
-    'url': 'http://which-urls-to-send-via-http2:443/',
-    'options': {
-        'transport': 'wss://where-the-underlying-ws-transport-connects:443/',
-        'h2PushPath': 'optional-path-that-is-opened-for-pushes'
+    {  
+       "push": "optional-path-that-is-opened-for-pushes",
+       "transport": "wss://where-the-underlying-ws-transport-connects:443/",
+       "proxy":[  
+          "http://origin-to-send-via-http2:80/path/",
+          "http://origin-to-send-via-http2:80/path2/",
+          "http://other-origin-to-send-via-http2:80"
+       ]
     }
 
 ```
