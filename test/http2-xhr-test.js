@@ -312,7 +312,7 @@ describe('H2 XHR', function () {
                 response.write(message);
                 response.end();
             } else {
-                throw new Error("Should only proxy '/path/proxy'");
+                throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
             }
         };
 
