@@ -5,6 +5,8 @@ XMLHttpRequest = require("xhr2").XMLHttpRequest;
 /* jshint ignore:end */
 require("../lib/http2-cache");
 
+FormData = require("../lib/form-data").FormData;
+
 var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),
@@ -55,8 +57,29 @@ describe('H2 XHR', function () {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config3));
             } else if (path.indexOf('/path') === 0) {
-                response.writeHead(200, {'Content-Type': 'application/json'});
-                response.end("DATA");
+                
+                var body;
+                if (request.method === "POST") {
+                    body = [];
+                    request.on('data', function(chunk) {
+                      body.push(chunk);
+                    }).on('end', function() {
+
+                        // at this point, `body` has the entire request body stored in it as a string
+                        body = Buffer.concat(body).toString();
+
+                        response.writeHead(200, {'Content-Type': 'text/html'});
+                        response.end(body);
+                    });
+
+                } else {
+
+                    response.writeHead(200, {'Content-Type': 'application/json'});
+                    response.end(JSON.stringify({
+                        data: Date.now()
+                    }));
+                }
+
             } else {
                 console.warn("Request for unknown path: " + path);
                 response.writeHead(404);
@@ -300,7 +323,7 @@ describe('H2 XHR', function () {
 
     it('should only proxy path match GET requests', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
-        var message = "DATA";
+        var message = "Affirmative, Dave. I read you. ";
         var requestCount = 0;
         s2OnRequest = function (request, response) {
             if (++requestCount === 1) {
@@ -366,6 +389,95 @@ describe('H2 XHR', function () {
         xhr.send(null);
         xhr2.open('GET', 'http://localhost:7080/path/notproxy?query=1', true);
         xhr2.send(null);
+    });
+
+    it('should only proxy path match POST requests', function (done) {
+        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
+    
+        var formData = new FormData();
+        formData.append('username', 'Chris');
+        formData.append('username', 'Bob');
+        formData.append('gender', 'male');  
+
+        var requestCount = 0;
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                assert.equal(request.url, '/path/proxy');
+                assert.equal(request.method, 'POST');
+
+                var body = [];
+                request.on('data', function(chunk) {
+                  body.push(chunk);
+                }).on('end', function() {
+
+                    // at this point, `body` has the entire request body stored in it as a string
+                    body = Buffer.concat(body).toString();
+
+                    assert.equal("username=Chris&username=Bob&gender=male", body);
+
+                    response.setHeader('Content-Type', 'text/html');
+                    response.setHeader('Content-Length', body.length);
+                    response.setHeader('Cache-Control', 'private, max-age=0');
+                    response.write(body);
+                    response.end();
+                });
+            } else {
+                throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
+            }
+        };
+
+        var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState >= 2) {
+                assert.equal(200, xhr.status);
+                assert.equal("OK", xhr.statusText);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal("username=Chris&username=Bob&gender=male", xhr.responseText);
+                doneN(3);
+            }
+        };
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        doneN(3);
+                    };
+                };
+            };
+        };
+
+        var statechanges2 = 0;
+        xhr2.onreadystatechange = function () {
+             assert.equal(xhr2.readyState, statechanges2++);
+            if (xhr2.readyState >= 2) {
+                assert.equal(xhr2.status, 200);
+                assert.equal(xhr2.statusText, "OK");
+            }
+            if (xhr2.readyState === 4 && xhr2.status === 200) {
+                xhr2.addEventListener('load', function () {
+                    assert.equal("username=Chris&username=Bob&gender=male", xhr2.responseText);
+                    doneN(3);
+                });
+            }
+        };      
+
+        xhr.open('POST', 'http://localhost:7080/path/proxy', true);
+        xhr.send(formData);
+        xhr2.open('POST', 'http://localhost:7080/path/notproxy?query=1', true);
+        xhr2.send(formData);
     });
 
     it('should use pushed results in cache', function (done) {
