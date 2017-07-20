@@ -15,19 +15,27 @@ var assert = require('assert'),
 describe('H2 XHR', function () {
 
     var config1 = {
-        'url': 'http://cache-endpoint1/',
-        'options': {
-
-            'transport': 'ws://localhost:7081/',
-            'h2PushPath': 'stream'
-        }
+        'pushURL': 'http://cache-endpoint1/stream',
+        'transport': 'ws://localhost:7081/',
+        'proxy': [
+            'http://cache-endpoint1/',
+            'http://cache-endpoint4/'
+        ]
     };
 
     var config2 = {
-        'url': 'https://cache-endpoint2/',
-        'options': {
-            'transport': 'ws://localhost:7082/path',
-        }
+        'transport': 'ws://localhost:7082/path',
+        'proxy': [
+            'http://cache-endpoint2/',
+            'http://cache-endpoint3/'
+        ]
+    };
+
+    var config3 = {
+        'transport': 'ws://localhost:7082/path',
+        'proxy': [
+            'http://localhost:7080/path/proxy'
+        ]
     };
 
     var configServer;
@@ -36,12 +44,19 @@ describe('H2 XHR', function () {
         configServer = http.createServer(function (request, response) {
 
             var path = request.url;
+            console.log('configServer', path);
             if (path === '/config1') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config1));
             } else if (path === '/config2') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config2));
+            } else if (path === '/config3') {
+                response.writeHead(200, {'Content-Type': 'application/json'});
+                response.end(JSON.stringify(config3));
+            } else if (path.indexOf('/path') === 0) {
+                response.writeHead(200, {'Content-Type': 'application/json'});
+                response.end("DATA");
             } else {
                 console.warn("Request for unknown path: " + path);
                 response.writeHead(404);
@@ -64,11 +79,11 @@ describe('H2 XHR', function () {
     beforeEach(function (done) {
         // starts the 2 h2overWs servers
         s1OnRequest = function (request, response) {
-            throw "Unexpected event: " + request + " " + response;
+            throw new Error("s1OnRequest Unexpected request: " + request.url);
         };
 
         s2OnRequest = function (request, response) {
-            throw "Unexpected event " + request + " " + response;
+            throw new Error("s2OnRequest Unexpected request: " + request.url);
         };
 
         var completed = 0;
@@ -143,7 +158,7 @@ describe('H2 XHR', function () {
                 done();
             }
         };
-        xhr.open('GET', 'https://cache-endpoint2/path', true);
+        xhr.open('GET', 'http://cache-endpoint2/path', true);
 
         xhr.send(null);
 
@@ -176,7 +191,7 @@ describe('H2 XHR', function () {
             };
         };
 
-        xhr.open('GET', 'https://cache-endpoint2/withListeners', true);
+        xhr.open('GET', 'http://cache-endpoint2/withListeners', true);
 
         xhr.send(null);
 
@@ -186,6 +201,11 @@ describe('H2 XHR', function () {
         var message = "Hello, Dave. You're looking well today.";
         s2OnRequest = function (request, response) {
 
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/payload');
+            assert.equal(request.headers['content-type'], 'application/x-www-form-urlencoded');
+            assert.equal(request.method, 'POST');
+            
             var body = [];
             request.on('data', function(chunk) {
               body.push(chunk);
@@ -194,9 +214,6 @@ describe('H2 XHR', function () {
                 // at this point, `body` has the entire request body stored in it as a string
                 body = Buffer.concat(body).toString();
 
-                // TODO check request headers and requests responses
-                assert.equal(request.url, '/payload');
-                assert.equal(request.method, 'POST');
                 response.setHeader('Content-Type', 'text/html');
                 response.setHeader('Content-Length', message.length);
                 response.setHeader('Cache-Control', 'private, max-age=0');
@@ -220,8 +237,8 @@ describe('H2 XHR', function () {
             };
         };
 
-        xhr.open('POST', 'https://cache-endpoint2/payload', true);
-
+        xhr.open('POST', 'http://cache-endpoint2/payload', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.send(message);
 
     });
@@ -281,13 +298,84 @@ describe('H2 XHR', function () {
         xhr2.send(null);
     });
 
+    it('should only proxy path match GET requests', function (done) {
+        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
+        var message = "DATA";
+        var requestCount = 0;
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/path/proxy');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(message);
+                response.end();
+            } else {
+                throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
+            }
+        };
+
+        var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState >= 2) {
+                assert.equal(200, xhr.status);
+                assert.equal("OK", xhr.statusText);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                doneN(3);
+            }
+        };
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        doneN(3);
+                    };
+                };
+            };
+        };
+
+        var statechanges2 = 0;
+        xhr2.onreadystatechange = function () {
+             assert.equal(xhr2.readyState, statechanges2++);
+            if (xhr2.readyState >= 2) {
+                assert.equal(xhr2.status, 200);
+                assert.equal(xhr2.statusText, "OK");
+            }
+            if (xhr2.readyState === 4 && xhr2.status === 200) {
+                xhr2.addEventListener('load', function () {
+                    doneN(3);
+                });
+            }
+        };
+
+        xhr.open('GET', 'http://localhost:7080/path/proxy', true);
+        xhr.send(null);
+        xhr2.open('GET', 'http://localhost:7080/path/notproxy?query=1', true);
+        xhr2.send(null);
+    });
+
     it('should use pushed results in cache', function (done) {
         var message = "Affirmative, Dave. I read you. ";
         var xhr = new XMLHttpRequest();
         s1OnRequest = function (request, response) {
-            assert.equal(request.url, 'stream', 'should be on streaming url');
+            assert.equal(request.url, '/stream', 'should be on streaming url');
             var pr = response.push({
-                'path': '/pushedCache1'
+                'path': '/pushedCache1',
+                'protocol': 'http:'
             });
             pr.setHeader('Content-Type', 'text/html');
             pr.setHeader('Content-Length', message.length);
@@ -381,12 +469,12 @@ describe('H2 XHR', function () {
                         done();
                     }
                 };
-                secondRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
+                secondRequest.open('GET', 'http://cache-endpoint2/cachedGetRequest', true);
                 secondRequest.send(null);
             }
         };
 
-        firstRequest.open('GET', 'https://cache-endpoint2/cachedGetRequest', true);
+        firstRequest.open('GET', 'http://cache-endpoint2/cachedGetRequest', true);
 
         firstRequest.send(null);
     });
@@ -459,12 +547,12 @@ describe('H2 XHR', function () {
                         done();
                     }
                 };
-                secondRequest.open('GET', 'https://cache-endpoint2/cachedGetLargeRequest', true);
+                secondRequest.open('GET', 'http://cache-endpoint2/cachedGetLargeRequest', true);
                 secondRequest.send(null);
             }
         };
 
-        firstRequest.open('GET', 'https://cache-endpoint2/cachedGetLargeRequest', true);
+        firstRequest.open('GET', 'http://cache-endpoint2/cachedGetLargeRequest', true);
 
         firstRequest.send(null);
     });
