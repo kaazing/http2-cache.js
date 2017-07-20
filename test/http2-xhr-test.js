@@ -329,7 +329,6 @@ describe('H2 XHR', function () {
 
         var statechanges = 0;
         xhr.onreadystatechange = function () {
-            assert.equal(xhr.readyState, statechanges++);
             if (xhr.readyState >= 2) {
                 assert.equal(200, xhr.status);
                 assert.equal("OK", xhr.statusText);
@@ -365,7 +364,7 @@ describe('H2 XHR', function () {
 
         xhr.open('GET', 'http://localhost:7080/path/proxy', true);
         xhr.send(null);
-        xhr2.open('GET', 'http://localhost:7080/path/notproxy', true);
+        xhr2.open('GET', 'http://localhost:7080/path/notproxy?query=1', true);
         xhr2.send(null);
     });
 
