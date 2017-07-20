@@ -118,7 +118,6 @@
     "indent"        : 4,         // Specify indentation spacing
     "mocha": true,
     "globals": {
-      "console": false,
       "WebSocket": false,
       "Buffer": false,
       "require": false,
