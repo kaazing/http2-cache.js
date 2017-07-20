@@ -34,8 +34,7 @@ describe('H2 XHR', function () {
     var config3 = {
         'transport': 'ws://localhost:7082/path',
         'proxy': [
-            'http://cache-endpoint3/path',
-            'http://cache-endpoint3/notpath/proxyfied',
+            'http://localhost:7080/path/proxy'
         ]
     };
 
@@ -45,15 +44,19 @@ describe('H2 XHR', function () {
         configServer = http.createServer(function (request, response) {
 
             var path = request.url;
+            console.log('configServer', path);
             if (path === '/config1') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config1));
             } else if (path === '/config2') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
-                response.end(JSON.stringify(config2));  
+                response.end(JSON.stringify(config2));
             } else if (path === '/config3') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config3));
+            } else if (path.indexOf('/path') === 0) {
+                response.writeHead(200, {'Content-Type': 'application/json'});
+                response.end("DATA");
             } else {
                 console.warn("Request for unknown path: " + path);
                 response.writeHead(404);
@@ -76,11 +79,11 @@ describe('H2 XHR', function () {
     beforeEach(function (done) {
         // starts the 2 h2overWs servers
         s1OnRequest = function (request, response) {
-            throw new Error("Unexpected event: " + request + " " + response);
+            throw new Error("s1OnRequest Unexpected request: " + request.url);
         };
 
         s2OnRequest = function (request, response) {
-            throw new Error("Unexpected event " + request + " " + response);
+            throw new Error("s2OnRequest Unexpected request: " + request.url);
         };
 
         var completed = 0;
@@ -158,90 +161,7 @@ describe('H2 XHR', function () {
         xhr.open('GET', 'http://cache-endpoint2/path', true);
 
         xhr.send(null);
-    });
 
-    it('should proxy GET request for path match', function (done) {
-        var message = "Hello, Dave. You're looking well today.";
-        s2OnRequest = function (request, response) {
-            // TODO check request headers and requests responses
-            assert.equal(request.url, '/path');
-            response.setHeader('Content-Type', 'text/html');
-            response.setHeader('Content-Length', message.length);
-            response.setHeader('Cache-Control', 'private, max-age=0');
-            response.write(message);
-            response.end();
-        };
-        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
-        var xhr = new XMLHttpRequest();
-
-        var statechanges = 0;
-        xhr.onreadystatechange = function () {
-            ++statechanges;
-            // TODO !==1 is due to bug
-            if(statechanges !== 1){
-                assert.equal(statechanges, xhr.readyState);
-            }
-            if (xhr.readyState >= 2) {
-                assert.equal(xhr.status, 200);
-                assert.equal(xhr.statusText, "OK");
-            }
-            // TODO assert message
-            if (xhr.readyState >= 3) {
-                assert.equal(xhr.response, message);
-            }
-            if (xhr.readyState === 4 && xhr.status === 200) {
-                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
-                assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
-                done();
-            }
-        };
-        xhr.open('GET', 'http://cache-endpoint3/path', true);
-
-        xhr.send(null);
-    });
-
-    it('should NOT proxy GET request with no path match', function (done) {
-        var message = "Hello, Dave. You're looking well today.";
-        s1OnRequest = function (request, response) {
-            assert.equal(request.url, '/notpath');
-            response.setHeader('Content-Type', 'text/html');
-            response.setHeader('Content-Length', message.length);
-            response.setHeader('Cache-Control', 'private, max-age=0');
-            response.write(message);
-            response.end();
-        };
-
-        s2OnRequest = function (request, response) {
-            throw new Error("Unexpected event " + request + " " + response);
-        };
-        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
-        var xhr = new XMLHttpRequest();
-
-        var statechanges = 0;
-        xhr.onreadystatechange = function () {
-            console.log(xhr);
-            ++statechanges;
-            // TODO !==1 is due to bug
-            if(statechanges !== 1){
-                assert.equal(statechanges, xhr.readyState);
-            }
-            if (xhr.readyState >= 2) {
-                assert.equal(xhr.status, 200);
-                assert.equal(xhr.statusText, "OK");
-            }
-            // TODO assert message
-            if (xhr.readyState >= 3) {
-                assert.equal(xhr.response, message);
-            }
-            if (xhr.readyState === 4 && xhr.status === 200) {
-                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
-                assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
-                done();
-            }
-        };
-        xhr.open('GET', 'http://cache-endpoint3/notpath', true);
-
-        xhr.send(null);
     });
 
     it('should proxy GET request with event listeners', function (done) {
@@ -375,6 +295,77 @@ describe('H2 XHR', function () {
         xhr.open('GET', 'http://localhost:7080/config2', true);
         xhr.send(null);
         xhr2.open('GET', 'http://localhost:7080/config1', true);
+        xhr2.send(null);
+    });
+
+    it('should only proxy path match GET requests', function (done) {
+        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
+        var message = "DATA";
+        var requestCount = 0;
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/path/proxy');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(message);
+                response.end();
+            } else {
+                throw new Error("Should only proxy '/path/proxy'");
+            }
+        };
+
+        var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            assert.equal(xhr.readyState, statechanges++);
+            if (xhr.readyState >= 2) {
+                assert.equal(200, xhr.status);
+                assert.equal("OK", xhr.statusText);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                doneN(3);
+            }
+        };
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        doneN(3);
+                    };
+                };
+            };
+        };
+
+        var statechanges2 = 0;
+        xhr2.onreadystatechange = function () {
+             assert.equal(xhr2.readyState, statechanges2++);
+            if (xhr2.readyState >= 2) {
+                assert.equal(xhr2.status, 200);
+                assert.equal(xhr2.statusText, "OK");
+            }
+            if (xhr2.readyState === 4 && xhr2.status === 200) {
+                xhr2.addEventListener('load', function () {
+                    doneN(3);
+                });
+            }
+        };
+
+        xhr.open('GET', 'http://localhost:7080/path/proxy', true);
+        xhr.send(null);
+        xhr2.open('GET', 'http://localhost:7080/path/notproxy', true);
         xhr2.send(null);
     });
 
