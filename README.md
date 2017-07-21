@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=master)](http://travis-ci.org/kaazing/http2-cache.js)
+[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=develop)](http://travis-ci.org/kaazing/http2-cache.js)
 
 # http2-cache.js
 
