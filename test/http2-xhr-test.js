@@ -437,7 +437,6 @@ describe('H2 XHR', function () {
         var statechanges = 0;
         firstRequest.onreadystatechange = function () {
             ++statechanges;
-            // TODO !==1 is due to bug
             if(statechanges !== 1) {
                 assert.equal(statechanges, firstRequest.readyState);
             }
@@ -466,6 +465,7 @@ describe('H2 XHR', function () {
                         assert.equal(secondRequest.response, message);
                     }
                     if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.response, message);
                         done();
                     }
                 };
@@ -473,7 +473,86 @@ describe('H2 XHR', function () {
                 secondRequest.send(null);
             }
         };
+
         firstRequest.open('GET', 'http://cache-endpoint2/cachedGetRequest', true);
+
+        firstRequest.send(null);
+    });
+
+    it('should cache GET request and reuse for response larger than MAX_PAYLOAD_SIZE', function (done) {
+
+        var requestCount = 0;
+        var MAX_PAYLOAD_SIZE = 4096;
+
+        var length = MAX_PAYLOAD_SIZE * 50;
+        var message = generateRandAlphaNumStr(length);
+
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetLargeRequest');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', lengthInUtf8Bytes(message));
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(message);
+                response.end();
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        var loadingchanges = 0,
+            framesSizes = [];
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+
+            if (firstRequest.readyState === 3) {
+                framesSizes.push(firstRequest.responseText.length);
+                loadingchanges++;
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                var secondRequest = new XMLHttpRequest();
+
+                var statechanges2 = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechanges2;
+                    if(statechanges2 !== 1) {
+                        assert.equal(statechanges2, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    // Expect cached frame and to only append once
+                    if (secondRequest.readyState === 3) {
+
+                        // Should match last decoded size from firstRequest
+                        assert.equal(framesSizes[loadingchanges - 1], secondRequest.responseText.length);
+
+                        // Catch double secondRequest.readyState === 3 by making test above fail subsequently
+                        loadingchanges = -1;
+                    }
+
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.responseText, message);
+                        assert.equal(secondRequest.responseText.length, message.length);
+                        assert.equal(secondRequest.response, secondRequest.responseText);
+                        done();
+                    }
+                };
+                secondRequest.open('GET', 'http://cache-endpoint2/cachedGetLargeRequest', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint2/cachedGetLargeRequest', true);
 
         firstRequest.send(null);
     });
