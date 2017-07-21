@@ -15,4 +15,15 @@ describe('utils', function () {
 			 assert.equal(Utf8ArrayToStr(a), aStr);
 		});
 	});	
+
+	describe('mergeTypedArrays', function () {
+		it('should merge Utf8Array', function () {
+		 	var aStr = generateRandAlphaNumStr(2500),
+		 		bStr = generateRandAlphaNumStr(2500),
+		 		a = unicodeStringToTypedArray(aStr),
+		 		b = unicodeStringToTypedArray(bStr),
+		 		c = unicodeStringToTypedArray(aStr + bStr);
+	        assert.equal(Utf8ArrayToStr(mergeTypedArrays(a, b)), Utf8ArrayToStr(c));
+	    });
+	});
 });
