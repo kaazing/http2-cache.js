@@ -1,8 +1,8 @@
 /* global console */
 
-/* jshint ignore:start */
 XMLHttpRequest = require("xhr2").XMLHttpRequest;
-/* jshint ignore:end */
+FormData = require("../lib/form-data").FormData;
+
 require("../lib/http2-cache");
 
 var assert = require('assert'),
@@ -44,7 +44,7 @@ describe('H2 XHR', function () {
         configServer = http.createServer(function (request, response) {
 
             var path = request.url;
-            console.log('configServer', path);
+            //console.log('configServer', path);
             if (path === '/config1') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config1));
@@ -54,9 +54,36 @@ describe('H2 XHR', function () {
             } else if (path === '/config3') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config3));
-            } else if (path.indexOf('/path') === 0) {
+            } else if (path === '/headers') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
-                response.end("DATA");
+
+                var requestHeader = request.headers;
+                delete requestHeader["user-agent"];
+                response.end(JSON.stringify(request.headers));
+            } else if (path.indexOf('/path') === 0) {
+
+                var body;
+                if (request.method === "POST") {
+                    body = [];
+                    request.on('data', function(chunk) {
+                      body.push(chunk);
+                    }).on('end', function() {
+
+                        // at this point, `body` has the entire request body stored in it as a string
+                        body = Buffer.concat(body).toString();
+
+                        response.writeHead(200, {'Content-Type': 'text/html'});
+                        response.end(body);
+                    });
+
+                } else {
+
+                    response.writeHead(200, {'Content-Type': 'application/json'});
+                    response.end(JSON.stringify({
+                        data: Date.now()
+                    }));
+                }
+
             } else {
                 console.warn("Request for unknown path: " + path);
                 response.writeHead(404);
@@ -243,7 +270,7 @@ describe('H2 XHR', function () {
 
     });
 
-    it('should not proxy different origin GET requests', function (done) {
+    it('should not proxy different origin GET requests and pass headers', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
         var xhr = new XMLHttpRequest();
         var xhr2 = new XMLHttpRequest();
@@ -264,6 +291,13 @@ describe('H2 XHR', function () {
                 assert.equal("OK", xhr.statusText);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(JSON.stringify({
+                    "content-type": "application/json",
+                    "x-custom-header": "MyValue",
+                    "connection": "keep-alive",
+                    "host": "localhost:7080",
+                    "content-length": "0"
+                }), xhr.responseText);
                 doneN(3);
             }
         };
@@ -287,12 +321,16 @@ describe('H2 XHR', function () {
             }
             if (xhr2.readyState === 4 && xhr2.status === 200) {
                 xhr2.addEventListener('load', function () {
+                    assert.equal(JSON.stringify(config1), xhr2.responseText);
                     doneN(3);
                 });
             }
         };
 
-        xhr.open('GET', 'http://localhost:7080/config2', true);
+        xhr.open('GET', 'http://localhost:7080/headers', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-Custom-Header', 'MyValue');
+
         xhr.send(null);
         xhr2.open('GET', 'http://localhost:7080/config1', true);
         xhr2.send(null);
@@ -300,7 +338,7 @@ describe('H2 XHR', function () {
 
     it('should only proxy path match GET requests', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
-        var message = "DATA";
+        var message = "Affirmative, Dave. I read you. ";
         var requestCount = 0;
         s2OnRequest = function (request, response) {
             if (++requestCount === 1) {
@@ -366,6 +404,95 @@ describe('H2 XHR', function () {
         xhr.send(null);
         xhr2.open('GET', 'http://localhost:7080/path/notproxy?query=1', true);
         xhr2.send(null);
+    });
+
+    it('should only proxy path match POST requests', function (done) {
+        XMLHttpRequest.proxy(["http://localhost:7080/config3"]);
+    
+        var formData = new FormData();
+        formData.append('username', 'Chris');
+        formData.append('username', 'Bob');
+        formData.append('gender', 'male');  
+
+        var requestCount = 0;
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                assert.equal(request.url, '/path/proxy');
+                assert.equal(request.method, 'POST');
+
+                var body = [];
+                request.on('data', function(chunk) {
+                  body.push(chunk);
+                }).on('end', function() {
+
+                    // at this point, `body` has the entire request body stored in it as a string
+                    body = Buffer.concat(body).toString();
+
+                    assert.equal("username=Chris&username=Bob&gender=male", body);
+
+                    response.setHeader('Content-Type', 'text/html');
+                    response.setHeader('Content-Length', body.length);
+                    response.setHeader('Cache-Control', 'private, max-age=0');
+                    response.write(body);
+                    response.end();
+                });
+            } else {
+                throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
+            }
+        };
+
+        var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState >= 2) {
+                assert.equal(200, xhr.status);
+                assert.equal("OK", xhr.statusText);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal("username=Chris&username=Bob&gender=male", xhr.responseText);
+                doneN(3);
+            }
+        };
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        doneN(3);
+                    };
+                };
+            };
+        };
+
+        var statechanges2 = 0;
+        xhr2.onreadystatechange = function () {
+             assert.equal(xhr2.readyState, statechanges2++);
+            if (xhr2.readyState >= 2) {
+                assert.equal(xhr2.status, 200);
+                assert.equal(xhr2.statusText, "OK");
+            }
+            if (xhr2.readyState === 4 && xhr2.status === 200) {
+                xhr2.addEventListener('load', function () {
+                    assert.equal("username=Chris&username=Bob&gender=male", xhr2.responseText);
+                    doneN(3);
+                });
+            }
+        };      
+
+        xhr.open('POST', 'http://localhost:7080/path/proxy', true);
+        xhr.send(formData);
+        xhr2.open('POST', 'http://localhost:7080/path/notproxy?query=1', true);
+        xhr2.send(formData);
     });
 
     it('should use pushed results in cache', function (done) {
