@@ -44,7 +44,7 @@ describe('H2 XHR', function () {
         configServer = http.createServer(function (request, response) {
 
             var path = request.url;
-            console.log('configServer', path);
+            //console.log('configServer', path);
             if (path === '/config1') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config1));
@@ -54,8 +54,14 @@ describe('H2 XHR', function () {
             } else if (path === '/config3') {
                 response.writeHead(200, {'Content-Type': 'application/json'});
                 response.end(JSON.stringify(config3));
+            } else if (path === '/headers') {
+                response.writeHead(200, {'Content-Type': 'application/json'});
+
+                var requestHeader = request.headers;
+                delete requestHeader["user-agent"];
+                response.end(JSON.stringify(request.headers));
             } else if (path.indexOf('/path') === 0) {
-                
+
                 var body;
                 if (request.method === "POST") {
                     body = [];
@@ -264,7 +270,7 @@ describe('H2 XHR', function () {
 
     });
 
-    it('should not proxy different origin GET requests', function (done) {
+    it('should not proxy different origin GET requests and pass headers', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
         var xhr = new XMLHttpRequest();
         var xhr2 = new XMLHttpRequest();
@@ -285,6 +291,13 @@ describe('H2 XHR', function () {
                 assert.equal("OK", xhr.statusText);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(JSON.stringify({
+                    "content-type": "application/json",
+                    "x-custom-header": "MyValue",
+                    "connection": "keep-alive",
+                    "host": "localhost:7080",
+                    "content-length": "0"
+                }), xhr.responseText);
                 doneN(3);
             }
         };
@@ -308,12 +321,16 @@ describe('H2 XHR', function () {
             }
             if (xhr2.readyState === 4 && xhr2.status === 200) {
                 xhr2.addEventListener('load', function () {
+                    assert.equal(JSON.stringify(config1), xhr2.responseText);
                     doneN(3);
                 });
             }
         };
 
-        xhr.open('GET', 'http://localhost:7080/config2', true);
+        xhr.open('GET', 'http://localhost:7080/headers', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-Custom-Header', 'MyValue');
+
         xhr.send(null);
         xhr2.open('GET', 'http://localhost:7080/config1', true);
         xhr2.send(null);
