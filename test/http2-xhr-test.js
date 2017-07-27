@@ -1,7 +1,7 @@
 /* global console */
 
-XMLHttpRequest = require("xhr2").XMLHttpRequest;
-FormData = require("../lib/form-data").FormData;
+var XMLHttpRequest = require("xhr2").XMLHttpRequest;
+var FormData = require("../lib/form-data").FormData;
 
 require("../lib/http2-cache");
 
