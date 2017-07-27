@@ -14,7 +14,7 @@ describe('H2 Proxy', function () {
 
     var config1 = {
         'transport': 'ws://localhost:7081/',
-        'pushURL': 'http://cache-endpoint1/stream',
+        'push': 'http://cache-endpoint1/stream',
         'proxy': [
             'http://cache-endpoint1/'
         ]
@@ -182,7 +182,7 @@ describe('H2 Proxy', function () {
         };
         XMLHttpRequest.configuration.addConfig({
             'transport': 'ws://localhost:7081/',
-            'pushURL': 'http://cache-endpoint1/stream',
+            'push': 'http://cache-endpoint1/stream',
             'proxy': [
                 'http://cache-endpoint1/'
             ]

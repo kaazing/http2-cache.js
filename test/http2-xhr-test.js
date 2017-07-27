@@ -15,7 +15,7 @@ var assert = require('assert'),
 describe('H2 XHR', function () {
 
     var config1 = {
-        'pushURL': 'http://cache-endpoint1/stream',
+        'push': 'http://cache-endpoint1/stream',
         'transport': 'ws://localhost:7081/',
         'proxy': [
             'http://cache-endpoint1/',
