@@ -1,6 +1,7 @@
 /* global console */
 var mergeTypedArrays = require('../lib/utils').mergeTypedArrays,
 	Utf8ArrayToStr = require('../lib/utils').Utf8ArrayToStr,
+	parseUrl = require('../lib/utils').parseUrl,
 	FormData = require('../lib/form-data').FormData,
 	serializeXhrBody = require('../lib/utils').serializeXhrBody,
     unicodeStringToTypedArray = require('./test-utils').unicodeStringToTypedArray,
@@ -10,11 +11,38 @@ var assert = require('assert');
 
 describe('utils', function () {
 
+	describe('parseUrl', function () {
+		it('should parse url with custom port', function () {
+			var url = "https://example.com:8080/path?query=1",
+				uri = parseUrl(url);
+			assert.equal(uri.port, 8080);	
+			assert.equal(uri.host, uri.hostname + ":" + uri.port);
+			assert.equal(uri.href, url);
+		});
+
+		it('should parse url with default https port', function () {
+			var url = "https://example.com/path?query=1",
+				uri = parseUrl(url);
+			assert.equal(uri.port, 443);	
+			assert.equal(uri.host, uri.hostname + ":" + uri.port);
+			assert.equal(uri.href, url.replace(uri.hostname, uri.host));
+		});
+
+		it('should parse url with default http port', function () {
+			var url = "http://example.com/path?query=1",
+				uri = parseUrl(url);
+
+			assert.equal(uri.port, 80);	
+			assert.equal(uri.host, uri.hostname + ":" + uri.port);
+			assert.equal(uri.href, url.replace(uri.hostname, uri.host));		
+		});
+	});	
+
 	describe('Utf8ArrayToStr', function () {
 		it('should convert Utf8Array to string', function () {
 			var aStr = generateRandAlphaNumStr(2500),
 				a = unicodeStringToTypedArray(aStr);
-			 assert.equal(Utf8ArrayToStr(a), aStr);
+			assert.equal(Utf8ArrayToStr(a), aStr);
 		});
 	});	
 

@@ -542,7 +542,7 @@ describe('H2 XHR', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
     });
 
-    it('should cache GET request and reuse', function (done) {
+    it('should cache GET request and reuse (with default port)', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         var requestCount = 0;
         s2OnRequest = function (request, response) {
@@ -602,6 +602,70 @@ describe('H2 XHR', function () {
         };
 
         firstRequest.open('GET', 'http://cache-endpoint2/cachedGetRequest', true);
+
+        firstRequest.send(null);
+    });
+
+    it('should cache GET request and reuse (with port)', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        var requestCount = 0;
+        s2OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetRequestWithPort');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(message);
+                response.end();
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if(statechanges !== 1) {
+                assert.equal(statechanges, firstRequest.readyState);
+            }
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+            if (firstRequest.readyState >= 3) {
+                assert.equal(firstRequest.response, message);
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                var secondRequest = new XMLHttpRequest();
+
+                var statechanges2 = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechanges2;
+                    // TODO !==1 is due to bug
+                    if(statechanges2 !== 1) {
+                        assert.equal(statechanges2, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    if (secondRequest.readyState >= 3) {
+                        assert.equal(secondRequest.response, message);
+                    }
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.response, message);
+                        done();
+                    }
+                };
+                secondRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithPort', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithPort', true);
 
         firstRequest.send(null);
     });
