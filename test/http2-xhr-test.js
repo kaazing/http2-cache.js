@@ -12,7 +12,7 @@ var assert = require('assert'),
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
-describe('H2 XHR', function () {
+describe('http2-xhr', function () {
 
     var config2 = {
         'transport': 'ws://localhost:7082/path',

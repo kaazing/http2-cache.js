@@ -9,7 +9,7 @@ var assert = require('assert'),
     http2 = require('http2'),
     getWSTransportServer = require('./test-utils').getWSTransportServer;
 
-describe('H2 XHR', function () {
+describe('http2-push', function () {
 
     var config1 = {
         'push': 'http://cache-endpoint1/stream',
