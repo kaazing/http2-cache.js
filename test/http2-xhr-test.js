@@ -533,6 +533,7 @@ describe('H2 XHR', function () {
                 }
             };
             xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
+
             // There is a race between xhr.js and push with out subscribe
             xhr.subscribe(function () {
                 xhr.unsubscribe();
@@ -639,8 +640,9 @@ describe('H2 XHR', function () {
                 assert.equal(firstRequest.response, message);
             }
             if (firstRequest.readyState === 4 && firstRequest.status === 200) {
-                var secondRequest = new XMLHttpRequest();
+                assert.equal(firstRequest.response, message);
 
+                var secondRequest = new XMLHttpRequest();
                 var statechanges2 = 0;
                 secondRequest.onreadystatechange = function () {
                     ++statechanges2;
@@ -668,6 +670,79 @@ describe('H2 XHR', function () {
         firstRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithPort', true);
 
         firstRequest.send(null);
+    });
+
+    it('should cache GET request and re-call onreadystatechange on pushed update', function (done) {
+        var messages = [
+            "Hello, Dave. You're looking well today.",
+            "Do you want to be my friend, Dave ?"
+        ];
+        var requestCount = 0;
+        s1OnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/stream');
+                //assert.equal(request.headers['x-retry-after'], 10);
+
+                var pr = response.push({
+                    'path': '/cachedGetRequestWithPush',
+                    'protocol': 'http:'
+                });
+                pr.setHeader('Content-Type', 'text/html');
+                pr.setHeader('Content-Length', messages[0].length);
+                pr.setHeader('Cache-Control', 'max-age=500');
+                pr.setHeader('Date', new Date());
+                pr.write(messages[0]);
+                pr.end();
+
+                setTimeout(function () {
+                    var pr = response.push({
+                        'path': '/cachedGetRequestWithPush',
+                        'protocol': 'http:'
+                    });
+                    pr.setHeader('Content-Type', 'text/html');
+                    pr.setHeader('Content-Length', messages[1].length);
+                    pr.setHeader('Cache-Control', 'max-age=500');
+                    pr.setHeader('Date', new Date());
+                    pr.write(messages[1]);
+                    pr.end();
+                }, 1000);
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0,
+            statecomplete = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+            if (firstRequest.readyState === 3) {
+                assert.equal(firstRequest.response, messages[statecomplete]);
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                assert.equal(firstRequest.response, messages[statecomplete]);
+                statecomplete++;
+            }
+
+            if (statecomplete === 1) {
+                done();
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint1/cachedGetRequestWithPush', true);
+        firstRequest.setRequestHeader('X-Retry-After', 1);
+
+        // There is a race between xhr.js and push with out subscribe
+        firstRequest.subscribe(function () {
+            firstRequest.send(null);
+        });
     });
 
     it('should cache GET request and reuse for response larger than MAX_PAYLOAD_SIZE', function (done) {
