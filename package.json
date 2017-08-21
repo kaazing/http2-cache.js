@@ -7,6 +7,8 @@
     "lint": "jshint lib/*.js test/*.js integration-test/*.js",
     "pretest": "npm run lint",
     "test": "mocha",
+    "test-e2e-build": "browserify test/*.js -o e2e-test/tests.js",
+    "test-2e2": "concurrently \"http-server -p 8085\" \"open http://localhost:8085/e2e-test/run.html\"",
     "build": "npm run test && node postinstall.js",
     "postinstall": "node postinstall.js"
   },
@@ -39,12 +41,14 @@
     "bluebird": "~3.4.x"
   },
   "devDependencies": {
-    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
-    "jshint": "2.9.4",
-    "xhr2": "0.1.4",
-    "spdy": "3.4.4 ",
-    "sinon": "1.17.7",
     "chai": "3.5.0",
-    "mocha": "3.2.0"
+    "concurrently": "^3.5.0",
+    "http-server": "^0.10.0",
+    "jshint": "2.9.4",
+    "mocha": "3.2.0",
+    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
+    "sinon": "1.17.7",
+    "spdy": "3.4.4 ",
+    "xhr2": "0.1.4"
   }
 }
