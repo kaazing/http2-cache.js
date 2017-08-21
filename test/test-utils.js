@@ -6,8 +6,6 @@ function createDummyServer(options, start) {
     if (typeof http.createServer === 'undefined') {
 
         var socket = {
-            on: function () {},
-            once: function () {},
             listen: function (options, done) {
                 setTimeout(done);
                 return socket;
@@ -18,7 +16,7 @@ function createDummyServer(options, start) {
         };
 
         if (typeof start === 'function') {
-            setTimeout(start.bind(null, socket));
+            setTimeout(start.bind(null));
         }
 
         return socket;
@@ -30,7 +28,7 @@ function createDummyServer(options, start) {
 
 function getSocketServer(options, onRequest, start) {
     var http2Server;
-    if (typeof websocket.createServer === 'undefined') {
+    if (typeof websocket.createServer === 'undefined' || options.dummy) {
         return createDummyServer(options, start);
     } else {
         http2Server = http2.raw.createServer({
