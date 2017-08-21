@@ -4,8 +4,8 @@ var path = require('path');
 var parseUrl = require('url').parse;
 
 var options = {
-    key: fs.readFileSync('./resources/localhost.key'),
-    cert: fs.readFileSync('./resources/localhost.crt')
+    key: fs.readFileSync(path.join(__dirname, './resources/localhost.key')),
+    cert: fs.readFileSync(path.join(__dirname, './resources/localhost.crt'))
 };
 
 var basePath = ['/native-support.html', 'index.html', '/'];
