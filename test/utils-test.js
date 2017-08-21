@@ -44,6 +44,10 @@ describe('utils', function () {
 				a = unicodeStringToTypedArray(aStr);
 			assert.equal(Utf8ArrayToStr(a), aStr);
 		});
+		it('should handle 4+ byte sequences', function () {
+			assert.equal(Utf8ArrayToStr([240,159,154,133]), '🚅');
+			assert.equal(Utf8ArrayToStr([226,152,131]), '☃');
+		});
 	});	
 
 	describe('mergeTypedArrays', function () {
