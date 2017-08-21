@@ -1,12 +1,12 @@
 /* global console */
 
-/* jshint ignore:start */
-XMLHttpRequest = require("xhr2").XMLHttpRequest;
-/* jshint ignore:end */
+var assert =  require('chai').assert;
+
+// Init http2-cache
+global.XMLHttpRequest = require("xhr2").XMLHttpRequest;
 require("../lib/http2-cache");
 
-var assert = require('assert'),
-    http = require('http'),
+var http = require('http'),
     http2 = require('http2'),
     getWSTransportServer = require('./test-utils.js').getWSTransportServer;
 
