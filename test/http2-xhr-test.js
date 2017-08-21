@@ -1,12 +1,15 @@
 /* global console */
+var chai = require('chai');
+var assert = chai.assert;
 
-var XMLHttpRequest = require("xhr2").XMLHttpRequest;
-var FormData = require("../lib/form-data").FormData;
-
+/* jshint ignore:start */
+XMLHttpRequest = require("xhr2").XMLHttpRequest;
+/* jshint ignore:end */
 require("../lib/http2-cache");
 
-var assert = require('assert'),
-    http = require('http'),
+var FormData = require("../lib/form-data").FormData;
+
+var http = require('http'),
     http2 = require('http2'),
     getWSTransportServer = require('./test-utils').getWSTransportServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,

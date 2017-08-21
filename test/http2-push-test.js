@@ -1,7 +1,10 @@
 /* global console */
+var chai = require('chai');
+var assert = chai.assert;
 
-var XMLHttpRequest = require("xhr2").XMLHttpRequest;
-
+/* jshint ignore:start */
+XMLHttpRequest = require("xhr2").XMLHttpRequest;
+/* jshint ignore:end */
 require("../lib/http2-cache");
 
 var assert = require('assert'),

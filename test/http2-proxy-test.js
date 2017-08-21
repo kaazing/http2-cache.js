@@ -1,16 +1,17 @@
 /* global console */
+var chai = require('chai');
+var assert = chai.assert;
 
 /* jshint ignore:start */
 XMLHttpRequest = require("xhr2").XMLHttpRequest;
 /* jshint ignore:end */
 require("../lib/http2-cache");
 
-var assert = require('assert'),
-    http = require('http'),
+var http = require('http'),
     http2 = require('http2'),
     getWSTransportServer = require('./test-utils.js').getWSTransportServer;
 
-describe('H2 Proxy', function () {
+describe('http2-proxy', function () {
 
     var config1 = {
         'transport': 'ws://localhost:7081/',
