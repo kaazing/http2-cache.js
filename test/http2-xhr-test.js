@@ -579,5 +579,7 @@ describe('http2-xhr', function () {
         firstRequest.open('GET', 'http://cache-endpoint2/cachedGetLargeRequest', true);
 
         firstRequest.send(null);
-    });
+
+    // This test should take between 2000ms and 3000ms timeout above can be a sign of performance regression.
+    }).timeout(3000);
 });

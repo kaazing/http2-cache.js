@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "jshint lib/*.js test/*.js integration-test/*.js",
     "pretest": "npm run lint",
-    "test": "mocha -t 5000",
+    "test": "mocha",
     "build": "npm run test && node postinstall.js",
     "postinstall": "node postinstall.js"
   },
