@@ -3,7 +3,9 @@ var chai = require('chai');
 var assert = chai.assert;
 
 /* jshint ignore:start */
-XMLHttpRequest = require("xhr2").XMLHttpRequest;
+if (typeof XMLHttpRequest === 'undefined') {
+    XMLHttpRequest = require("xhr2").XMLHttpRequest;   
+}
 /* jshint ignore:end */
 require("../lib/http2-cache");
 

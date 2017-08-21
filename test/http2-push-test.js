@@ -3,18 +3,21 @@ var chai = require('chai');
 var assert = chai.assert;
 
 /* jshint ignore:start */
-XMLHttpRequest = require("xhr2").XMLHttpRequest;
+if (typeof XMLHttpRequest === 'undefined') {
+    XMLHttpRequest = require("xhr2").XMLHttpRequest;   
+}
 /* jshint ignore:end */
 require("../lib/http2-cache");
 
 var assert = require('assert'),
     http = require('http'),
     http2 = require('http2'),
-    getWSTransportServer = require('./test-utils').getWSTransportServer;
+    getSocketServer = require('./test-utils.js').getSocketServer,
+    getConfigServer = require('./test-utils').getConfigServer;
 
 describe('http2-push', function () {
 
-    var config1 = {
+    var config = {
         'push': 'http://cache-endpoint1/stream',
         'transport': 'ws://localhost:7081/',
         'proxy': [
@@ -26,78 +29,40 @@ describe('http2-push', function () {
     var configServer;
 
     before(function (done) {
-        configServer = http.createServer(function (request, response) {
-
-            var path = request.url;
-            //console.log('configServer', path);
-            if (path === '/config1') {
-                response.writeHead(200, {'Content-Type': 'application/json'});
-                response.end(JSON.stringify(config1));
-            } else if (path === '/headers') {
-                response.writeHead(200, {'Content-Type': 'application/json'});
-
-                var requestHeader = request.headers;
-                delete requestHeader["user-agent"];
-                response.end(JSON.stringify(request.headers));
-            } else if (path.indexOf('/path') === 0) {
-
-                var body;
-                if (request.method === "POST") {
-                    body = [];
-                    request.on('data', function(chunk) {
-                      body.push(chunk);
-                    }).on('end', function() {
-
-                        // at this point, `body` has the entire request body stored in it as a string
-                        body = Buffer.concat(body).toString();
-
-                        response.writeHead(200, {'Content-Type': 'text/html'});
-                        response.end(body);
-                    });
-
-                } else {
-
-                    response.writeHead(200, {'Content-Type': 'application/json'});
-                    response.end(JSON.stringify({
-                        data: Date.now()
-                    }));
-                }
-
-            } else {
-                console.warn("Request for unknown path: " + path);
-                response.writeHead(404);
-                response.end("Not Found");
-            }
-        });
-        configServer.listen(7080, done);
+        configServer = getConfigServer({
+            config: config,
+            port: 7080
+        }, done);
     });
+
 
     after(function (done) {
         configServer.close(done);
     });
 
-    var s1;
-    var s1OnRequest;
+    var socket;
+    var socketOnRequest;
 
     beforeEach(function (done) {
         // starts the 2 h2overWs servers
-        s1OnRequest = function (request, response) {
-            throw new Error("s1OnRequest Unexpected request: " + request.url);
+        socketOnRequest = function (request, response) {
+            throw new Error("socketOnRequest Unexpected request: " + request.url);
         };
 
-        // start config1 http2 server
-        s1 = http2.raw.createServer(getWSTransportServer(), function (request, response) {
-            s1OnRequest(request, response);
-        });
-        s1.listen(7081, done);
+        // start config http2 server
+        socket = getSocketServer({
+            port: 7081
+        }, function (request, response) {
+            socketOnRequest(request, response);
+        }, done);
     });
 
     afterEach(function (done) {
-        s1.close(done);
+        socket.close(done);
     });
 
     it('should not proxy different origin GET requests and pass headers', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
         var xhr2 = new XMLHttpRequest();
 
@@ -147,7 +112,7 @@ describe('http2-push', function () {
             }
             if (xhr2.readyState === 4 && xhr2.status === 200) {
                 xhr2.addEventListener('load', function () {
-                    assert.equal(JSON.stringify(config1), xhr2.responseText);
+                    assert.equal(JSON.stringify(config), xhr2.responseText);
                     doneN(3);
                 });
             }
@@ -158,14 +123,14 @@ describe('http2-push', function () {
         xhr.setRequestHeader('X-Custom-Header', 'MyValue');
 
         xhr.send(null);
-        xhr2.open('GET', 'http://localhost:7080/config1', true);
+        xhr2.open('GET', 'http://localhost:7080/config', true);
         xhr2.send(null);
     });
 
     it('should use pushed results in cache', function (done) {
         var message = "Affirmative, Dave. I read you. ";
         var xhr = new XMLHttpRequest();
-        s1OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             assert.equal(request.url, '/stream', 'should be on streaming url');
             var pr = response.push({
                 'path': '/pushedCache1',
@@ -207,7 +172,7 @@ describe('http2-push', function () {
                 xhr.send(null);
             });
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
     it('should cache GET request and re-call onreadystatechange on pushed update', function (done) {
@@ -216,7 +181,7 @@ describe('http2-push', function () {
             "Do you want to be my friend, Dave ?"
         ];
         var requestCount = 0;
-        s1OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/stream');
@@ -249,7 +214,7 @@ describe('http2-push', function () {
                 throw new Error("Should only get 1 request");
             }
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config1"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var firstRequest = new XMLHttpRequest();
 
         var statechanges = 0,

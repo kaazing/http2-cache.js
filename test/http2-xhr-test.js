@@ -3,22 +3,24 @@ var chai = require('chai');
 var assert = chai.assert;
 
 /* jshint ignore:start */
-XMLHttpRequest = require("xhr2").XMLHttpRequest;
+if (typeof XMLHttpRequest === 'undefined') {
+    XMLHttpRequest = require("xhr2").XMLHttpRequest;   
+}
 /* jshint ignore:end */
 require("../lib/http2-cache");
 
-var FormData = require("../lib/form-data").FormData;
-
 var http = require('http'),
     http2 = require('http2'),
-    getWSTransportServer = require('./test-utils').getWSTransportServer,
+    FormData = require("../lib/form-data").FormData,
+    getSocketServer = require('./test-utils.js').getSocketServer,
+    getConfigServer = require('./test-utils').getConfigServer, 
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
 describe('http2-xhr', function () {
 
-    var config2 = {
-        'transport': 'ws://localhost:7082/path',
+    var config = {
+        'transport': 'ws://localhost:7081/path',
         'proxy': [
             'http://cache-endpoint2/',
             'http://cache-endpoint3/',
@@ -29,78 +31,39 @@ describe('http2-xhr', function () {
     var configServer;
 
     before(function (done) {
-        configServer = http.createServer(function (request, response) {
-
-            var path = request.url;
-            //console.log('configServer', path);
-            if (path === '/config2') {
-                response.writeHead(200, {'Content-Type': 'application/json'});
-                response.end(JSON.stringify(config2));
-            } else if (path === '/headers') {
-                response.writeHead(200, {'Content-Type': 'application/json'});
-
-                var requestHeader = request.headers;
-                delete requestHeader["user-agent"];
-                response.end(JSON.stringify(request.headers));
-            } else if (path.indexOf('/path') === 0) {
-
-                var body;
-                if (request.method === "POST") {
-                    body = [];
-                    request.on('data', function(chunk) {
-                      body.push(chunk);
-                    }).on('end', function() {
-
-                        // at this point, `body` has the entire request body stored in it as a string
-                        body = Buffer.concat(body).toString();
-
-                        response.writeHead(200, {'Content-Type': 'text/html'});
-                        response.end(body);
-                    });
-
-                } else {
-
-                    response.writeHead(200, {'Content-Type': 'application/json'});
-                    response.end(JSON.stringify({
-                        data: Date.now()
-                    }));
-                }
-
-            } else {
-                console.warn("Request for unknown path: " + path);
-                response.writeHead(404);
-                response.end("Not Found");
-            }
-        });
-        configServer.listen(7080, done);
+        configServer = getConfigServer({
+            config: config,
+            port: 7080
+        }, done);
     });
 
     after(function (done) {
         configServer.close(done);
     });
 
-    var s2;
-    var s2OnRequest;
+    var socket;
+    var socketOnRequest;
 
     beforeEach(function (done) {
-        s2OnRequest = function (request, response) {
-            throw new Error("s2OnRequest Unexpected request: " + request.url);
+        socketOnRequest = function (request, response) {
+            throw new Error("socketOnRequest Unexpected request: " + request.url);
         };
 
-        // start config2 http2 server
-        s2 = http2.raw.createServer(getWSTransportServer(), function (request, response) {
-            s2OnRequest(request, response);
-        });
-        s2.listen(7082, done);
+        // start config http2 server
+        socket = getSocketServer({
+            port: 7081
+        }, function (request, response) {
+            socketOnRequest(request, response);
+        }, done);
     });
 
     afterEach(function (done) {
-        s2.close(done);
+        socket.close(done);
     });
 
     it('should proxy GET request', function (done) {
         var message = "Hello, Dave. You're looking well today.";
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
             assert.equal(request.url, '/path');
             response.setHeader('Content-Type', 'text/html');
@@ -109,7 +72,7 @@ describe('http2-xhr', function () {
             response.write(message);
             response.end();
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
 
         var statechanges = 0;
@@ -141,7 +104,7 @@ describe('http2-xhr', function () {
 
     it('should proxy GET request with event listeners', function (done) {
         var message = "Hello, Dave. You're looking well today.";
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
             assert.equal(request.url, '/withListeners');
             response.setHeader('Content-Type', 'text/html');
@@ -150,7 +113,7 @@ describe('http2-xhr', function () {
             response.write(message);
             response.end();
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
 
         xhr.onloadstart = function () {
@@ -169,12 +132,11 @@ describe('http2-xhr', function () {
         xhr.open('GET', 'http://cache-endpoint2/withListeners', true);
 
         xhr.send(null);
-
     });
 
     it('should proxy POST request with event listeners', function (done) {
         var message = "Hello, Dave. You're looking well today.";
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
 
             // TODO check request headers and requests responses
             assert.equal(request.url, '/payload');
@@ -196,7 +158,7 @@ describe('http2-xhr', function () {
                 response.end();
             });
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
 
         xhr.onloadstart = function () {
@@ -219,10 +181,10 @@ describe('http2-xhr', function () {
     });
 
     it('should only proxy path match GET requests', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var message = "Affirmative, Dave. I read you. ";
         var requestCount = 0;
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/path/proxy');
@@ -268,9 +230,9 @@ describe('http2-xhr', function () {
             };
         };
 
-        var statechanges2 = 0;
+        var statechangesocket = 0;
         xhr2.onreadystatechange = function () {
-             assert.equal(xhr2.readyState, statechanges2++);
+             assert.equal(xhr2.readyState, statechangesocket++);
             if (xhr2.readyState >= 2) {
                 assert.equal(xhr2.status, 200);
                 assert.equal(xhr2.statusText, "OK");
@@ -289,7 +251,7 @@ describe('http2-xhr', function () {
     });
 
     it('should only proxy path match POST requests', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     
         var formData = new FormData();
         formData.append('username', 'Chris');
@@ -297,7 +259,7 @@ describe('http2-xhr', function () {
         formData.append('gender', 'male');  
 
         var requestCount = 0;
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             if (++requestCount === 1) {
                 assert.equal(request.url, '/path/proxy');
                 assert.equal(request.method, 'POST');
@@ -356,9 +318,9 @@ describe('http2-xhr', function () {
             };
         };
 
-        var statechanges2 = 0;
+        var statechangesocket = 0;
         xhr2.onreadystatechange = function () {
-             assert.equal(xhr2.readyState, statechanges2++);
+             assert.equal(xhr2.readyState, statechangesocket++);
             if (xhr2.readyState >= 2) {
                 assert.equal(xhr2.status, 200);
                 assert.equal(xhr2.statusText, "OK");
@@ -380,7 +342,7 @@ describe('http2-xhr', function () {
     it('should cache GET request and reuse (with default port)', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         var requestCount = 0;
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetRequest');
@@ -393,7 +355,7 @@ describe('http2-xhr', function () {
                 throw new Error("Should only get 1 request");
             }
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var firstRequest = new XMLHttpRequest();
 
         var statechanges = 0;
@@ -412,12 +374,12 @@ describe('http2-xhr', function () {
             if (firstRequest.readyState === 4 && firstRequest.status === 200) {
                 var secondRequest = new XMLHttpRequest();
 
-                var statechanges2 = 0;
+                var statechangesocket = 0;
                 secondRequest.onreadystatechange = function () {
-                    ++statechanges2;
+                    ++statechangesocket;
                     // TODO !==1 is due to bug
-                    if(statechanges2 !== 1) {
-                        assert.equal(statechanges2, secondRequest.readyState);
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
                     }
                     if (secondRequest.readyState >= 2) {
                         assert.equal(secondRequest.status, 200);
@@ -444,7 +406,7 @@ describe('http2-xhr', function () {
     it('should cache GET request and reuse (with port)', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         var requestCount = 0;
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetRequestWithPort');
@@ -457,7 +419,7 @@ describe('http2-xhr', function () {
                 throw new Error("Should only get 1 request");
             }
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var firstRequest = new XMLHttpRequest();
 
         var statechanges = 0;
@@ -477,12 +439,12 @@ describe('http2-xhr', function () {
                 assert.equal(firstRequest.response, message);
 
                 var secondRequest = new XMLHttpRequest();
-                var statechanges2 = 0;
+                var statechangesocket = 0;
                 secondRequest.onreadystatechange = function () {
-                    ++statechanges2;
+                    ++statechangesocket;
                     // TODO !==1 is due to bug
-                    if(statechanges2 !== 1) {
-                        assert.equal(statechanges2, secondRequest.readyState);
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
                     }
                     if (secondRequest.readyState >= 2) {
                         assert.equal(secondRequest.status, 200);
@@ -514,7 +476,7 @@ describe('http2-xhr', function () {
         var length = MAX_PAYLOAD_SIZE * 50;
         var message = generateRandAlphaNumStr(length);
 
-        s2OnRequest = function (request, response) {
+        socketOnRequest = function (request, response) {
             if (++requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetLargeRequest');
@@ -527,7 +489,7 @@ describe('http2-xhr', function () {
                 throw new Error("Should only get 1 request");
             }
         };
-        XMLHttpRequest.proxy(["http://localhost:7080/config2"]);
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var firstRequest = new XMLHttpRequest();
 
         var statechanges = 0;
@@ -547,11 +509,11 @@ describe('http2-xhr', function () {
             if (firstRequest.readyState === 4 && firstRequest.status === 200) {
                 var secondRequest = new XMLHttpRequest();
 
-                var statechanges2 = 0;
+                var statechangesocket = 0;
                 secondRequest.onreadystatechange = function () {
-                    ++statechanges2;
-                    if(statechanges2 !== 1) {
-                        assert.equal(statechanges2, secondRequest.readyState);
+                    ++statechangesocket;
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
                     }
                     if (secondRequest.readyState >= 2) {
                         assert.equal(secondRequest.status, 200);
