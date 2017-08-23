@@ -33,7 +33,7 @@
   "dependencies": {
     "browserify": "14.0.0 ",
     "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
-    "http2": "https://github.com/kaazing/node-http2#http2ws",
+    "http2": "https://github.com/jitsni/node-http2#stream.flow",
     "websocket-stream": "3.3.3",
     "collections": "~5.0.x",
     "bluebird": "~3.4.x"
