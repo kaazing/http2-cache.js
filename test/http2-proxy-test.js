@@ -7,7 +7,7 @@ require("../lib/http2-cache");
 
 var assert = require('assert'),
     http = require('http'),
-    http2 = require('http2'),
+    http2 = require('node-http2'),
     getWSTransportServer = require('./test-utils.js').getWSTransportServer;
 
 describe('H2 Proxy', function () {

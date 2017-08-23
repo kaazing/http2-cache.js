@@ -7,7 +7,7 @@ require("../lib/http2-cache");
 
 var assert = require('assert'),
     http = require('http'),
-    http2 = require('http2'),
+    http2 = require('node-http2'),
     getWSTransportServer = require('./test-utils').getWSTransportServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
@@ -748,5 +748,5 @@ describe('H2 XHR', function () {
         firstRequest.send(null);
 
     // This test should take between 2000ms and 3000ms timeout above can be a sign of performance regression.
-    }).timeout(3000);
+    }).timeout(5000);
 });
