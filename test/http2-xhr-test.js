@@ -1,13 +1,14 @@
 /* global console */
 
-var XMLHttpRequest = require("xhr2").XMLHttpRequest;
-var FormData = require("../lib/form-data").FormData;
+var assert =  require('chai').assert;
 
+// Init http2-cache
+global.XMLHttpRequest = require("xhr2").XMLHttpRequest;
 require("../lib/http2-cache");
 
-var assert = require('assert'),
-    http = require('http'),
+var http = require('http'),
     http2 = require('http2'),
+    FormData = require("../lib/form-data").FormData,
     getWSTransportServer = require('./test-utils').getWSTransportServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;

@@ -1,11 +1,18 @@
+/* global console */
+
+var assert =  require('chai').assert;
+
+// Init http2-cache
+global.XMLHttpRequest = require("xhr2").XMLHttpRequest;
+require("../lib/http2-cache");
+
 var parseCacheControl = require('../lib/cache.js').parseCacheControl,
     RequestInfo = require('../lib/cache.js').RequestInfo,
     satisfiesRequest = require('../lib/cache.js').satisfiesRequest,
     isCacheableResponse = require('../lib/cache.js').isCacheableResponse,
-    Cache = require('../lib/cache.js').Cache,
-    assert = require('assert');
+    Cache = require('../lib/cache.js').Cache;
 
-describe('Http Cache', function () {
+describe('http-cache', function () {
 
     it.skip('satisfiesRequest(requestInfo, response)', function () {
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
