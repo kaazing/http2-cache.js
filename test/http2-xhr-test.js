@@ -675,7 +675,7 @@ describe('H2 XHR', function () {
         var requestCount = 0;
         var MAX_PAYLOAD_SIZE = 4096;
 
-        var length = MAX_PAYLOAD_SIZE * 50;
+        var length = MAX_PAYLOAD_SIZE * 10;
         var message = generateRandAlphaNumStr(length);
 
         s2OnRequest = function (request, response) {
@@ -748,5 +748,5 @@ describe('H2 XHR', function () {
         firstRequest.send(null);
 
     // This test should take between 2000ms and 3000ms timeout above can be a sign of performance regression.
-    }).timeout(5000);
+    }).timeout(10000);
 });
