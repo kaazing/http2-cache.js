@@ -1,4 +1,4 @@
-var http2 = require('http2');
+var http2 = require('http2.js');
 var fs = require('fs');
 var path = require('path');
 var parseUrl = require('url').parse;

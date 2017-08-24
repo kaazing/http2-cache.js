@@ -7,7 +7,7 @@ require("../lib/http2-cache");
 
 var assert = require('assert'),
     http = require('http'),
-    http2 = require('node-http2'),
+    http2 = require('http2.js'),
     getWSTransportServer = require('./test-utils').getWSTransportServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
