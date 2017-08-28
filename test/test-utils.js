@@ -1,5 +1,5 @@
 var http = require('http'),
-    http2 = require('http2'),
+    http2 = require('http2.js'),
     websocket = require('websocket-stream');
 
 function createDummyServer(options, start) {
