@@ -10,7 +10,7 @@ if (typeof XMLHttpRequest === 'undefined') {
 require("../lib/http2-cache");
 
 var http = require('http'),
-    http2 = require('http2'),
+    http2 = require('http2.js'),
     FormData = require("../lib/form-data").FormData,
     getSocketServer = require('./test-utils.js').getSocketServer,
     getConfigServer = require('./test-utils').getConfigServer, 
@@ -473,7 +473,7 @@ describe('http2-xhr', function () {
         var requestCount = 0;
         var MAX_PAYLOAD_SIZE = 4096;
 
-        var length = MAX_PAYLOAD_SIZE * 50;
+        var length = MAX_PAYLOAD_SIZE * 10;
         var message = generateRandAlphaNumStr(length);
 
         socketOnRequest = function (request, response) {
@@ -546,5 +546,5 @@ describe('http2-xhr', function () {
         firstRequest.send(null);
 
     // This test should take between 2000ms and 3000ms timeout above can be a sign of performance regression.
-    }).timeout(3000);
+    }).timeout(10000);
 });
