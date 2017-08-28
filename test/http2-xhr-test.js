@@ -10,10 +10,10 @@ if (typeof XMLHttpRequest === 'undefined') {
 require("../lib/http2-cache");
 
 var http = require('http'),
-    http2 = require('http2'),
+    http2 = require('http2.js'),
     FormData = require("../lib/form-data").FormData,
     getSocketServer = require('./test-utils.js').getSocketServer,
-    getConfigServer = require('./test-utils').getConfigServer
+    getConfigServer = require('./test-utils').getConfigServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
