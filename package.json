@@ -4,7 +4,7 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "lint": "jshint lib/*.js test/*.js integration-test/*.js",
+    "lint": "jshint",
     "pretest": "npm run lint",
     "test": "mocha",
     "build": "npm run test && node postinstall.js",
@@ -33,7 +33,7 @@
   "dependencies": {
     "browserify": "14.0.0 ",
     "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
-    "http2": "https://github.com/kaazing/node-http2#http2ws",
+    "http2.js": "https://github.com/kaazing/http2.js#develop",
     "websocket-stream": "3.3.3",
     "collections": "~5.0.x",
     "bluebird": "~3.4.x"
