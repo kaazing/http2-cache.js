@@ -11,7 +11,7 @@ require("../lib/http2-cache");
 
 var assert = require('assert'),
     http = require('http'),
-    http2 = require('http2'),
+    http2 = require('http2.js'),
     getSocketServer = require('./test-utils.js').getSocketServer,
     getConfigServer = require('./test-utils').getConfigServer;
 
