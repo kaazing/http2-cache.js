@@ -63,12 +63,14 @@ describe('http2-xhr', function () {
 
     it('should proxy GET request', function (done) {
         var message = "Hello, Dave. You're looking well today.";
+        var date =  new Date().toString();
         socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
             assert.equal(request.url, '/path');
             response.setHeader('Content-Type', 'text/html');
             response.setHeader('Content-Length', message.length);
             response.setHeader('Cache-Control', 'private, max-age=0');
+            response.setHeader('date', date);
             response.write(message);
             response.end();
         };
@@ -86,13 +88,13 @@ describe('http2-xhr', function () {
                 assert.equal(xhr.status, 200);
                 assert.equal(xhr.statusText, "OK");
             }
-            // TODO assert message
+
             if (xhr.readyState >= 3) {
                 assert.equal(xhr.response, message);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
                 assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
-                assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: private, max-age=0\ndate: ' + date);
                 done();
             }
         };
