@@ -25,8 +25,8 @@ describe('http-cache', function () {
     });
 
     it('isCacheableResponse(response)', function () {
-        assert.equal(isCacheableResponse({'headers': {'cache-control': 'max-age=30'}}), true);
-        assert.equal(isCacheableResponse({'headers': {'cache-control': 'not-one-I-know'}}), false);
+        assert.equal(isCacheableResponse({'headers': {'cache-control': 'max-age=30'}, 'statusCode': 200}), true);
+        assert.equal(isCacheableResponse({'headers': {'cache-control': 'not-one-I-know'}, 'statusCode': 200}), false);
     });
 
     // TODO better testing of max age and stale-while-revalidate
@@ -44,7 +44,7 @@ describe('http-cache', function () {
 
     it('Cache returns match', function (done) {
         var cache = new Cache();
-        var response1 = {'href': 'https://example.com/', 'headers': {'cache-control': 'max-age=30', 'date': new Date()}};
+        var response1 = {'href': 'https://example.com/', 'headers': {'cache-control': 'max-age=30', 'date': new Date()}, 'statusCode': 200};
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
         cache.put(requestInfo, response1).then(
             function () {
@@ -58,7 +58,7 @@ describe('http-cache', function () {
 
     it('Cache returns null on no-cache request directive', function (done) {
         var cache = new Cache();
-        var response1 = {'href': 'https://example.com/', 'headers': {'cache-control': 'max-age=30', 'date': new Date()}};
+        var response1 = {'href': 'https://example.com/', 'headers': {'cache-control': 'max-age=30', 'date': new Date()}, 'statusCode': 200};
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'no-cache'});
         cache.put(requestInfo, response1).then(
             function () {
@@ -73,7 +73,8 @@ describe('http-cache', function () {
     it('Cache returns no match', function (done) {
         var cache = new Cache();
         var response1 = {
-            'headers': {'cache-control': 'max-age=30', 'date': new Date()}
+            'headers': {'cache-control': 'max-age=30', 'date': new Date()}, 
+            'statusCode': 200
         };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
         var requestInfo2 = new RequestInfo("GET", "https://example2.com/", {});
@@ -91,7 +92,8 @@ describe('http-cache', function () {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/',
-            'headers': {'cache-control': 'max-age=1', 'date': new Date()}
+            'headers': {'cache-control': 'max-age=1', 'date': new Date()},
+            'statusCode': 200
         };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
         cache.put(requestInfo, response1).then(
@@ -103,6 +105,20 @@ describe('http-cache', function () {
                     });
                 }, 1100)
         );
+    });
+
+    it('Cache update fail when no cachable statusCode provided', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {'cache-control': 'max-age=1', 'date': new Date()},
+            'statusCode': 500
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+        cache.put(requestInfo, response1).catch(function (err) {
+            assert.equal(err.message, 'Not Cacheable response');
+            done();
+        });
     });
 
     // https://github.com/roryf/parse-cache-control/blob/master/LICENSE
