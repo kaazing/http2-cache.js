@@ -44,30 +44,40 @@ describe('http-cache', function () {
 
     it('Cache returns match', function (done) {
         var cache = new Cache();
-        var response1 = {'href': 'https://example.com/', 'headers': {'cache-control': 'max-age=30', 'date': new Date()}, 'statusCode': 200};
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()}, 
+                'statusCode': 200
+            };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
-        cache.put(requestInfo, response1).then(
-            function () {
-                cache.match(requestInfo).then(function (r) {
-                    assert.equal(r, response1);
-                    done();
-                });
-            }
-        );
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1);
+                done();
+            });
+        });
     });
 
     it('Cache returns null on no-cache request directive', function (done) {
         var cache = new Cache();
-        var response1 = {'href': 'https://example.com/', 'headers': {'cache-control': 'max-age=30', 'date': new Date()}, 'statusCode': 200};
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()}, 
+                'statusCode': 200
+            };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'no-cache'});
-        cache.put(requestInfo, response1).then(
-            function () {
-                cache.match(requestInfo).then(function (r) {
-                    assert.equal(r, null);
-                    done();
-                });
-            }
-        );
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, null);
+                done();
+            });
+        });
     });
 
     it('Cache returns no match', function (done) {
@@ -78,14 +88,12 @@ describe('http-cache', function () {
         };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
         var requestInfo2 = new RequestInfo("GET", "https://example2.com/", {});
-        cache.put(requestInfo, response1).then(
-            function () {
-                cache.match(requestInfo2).then(function (r) {
-                    assert.equal(r, null);
-                    done();
-                });
-            }
-        );
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo2).then(function (r) {
+                assert.equal(r, null);
+                done();
+            });
+        });
     });
 
     it('Cache returns no match when expires', function (done) {
@@ -118,6 +126,39 @@ describe('http-cache', function () {
         cache.put(requestInfo, response1).catch(function (err) {
             assert.equal(err.message, 'Not Cacheable response');
             done();
+        });
+    });
+
+    it('Cache update fail when no cachable statusCode provided after a cachable statusCode', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()}, 
+                'statusCode': 200
+            };
+        var response2 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'date': new Date()}, 
+                'statusCode': 400
+            };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1);
+                cache.put(requestInfo, response2).catch(function (err) {
+                    assert.equal(err.message, 'Not Cacheable response');
+
+                    // Here is check cache has been clear
+                    cache.match(requestInfo).then(function (r) {
+                        assert.equal(r, null);
+                        done();
+                    });
+                });
+            });
         });
     });
 
