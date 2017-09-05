@@ -176,7 +176,7 @@ describe('http2-push', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
-    xit('should cache GET request and not reuse response if last push was invalid', function (done) {
+    it('should cache GET request and not reuse response if last push was invalid', function (done) {
         var messages = [
             "Hello, Dave. You're looking well today.",
             "Do you want to be my friend, Dave ?",
@@ -205,6 +205,7 @@ describe('http2-push', function () {
                 pr.write(messages[1]);
                 pr.end();
 
+            // Second request after disconnect from last PUST
             } else if (requestCount === 2) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetRequestAfterFailure');
@@ -232,8 +233,10 @@ describe('http2-push', function () {
                 assert.equal(firstRequest.statusText, "OK");
             }
             if (firstRequest.readyState >= 3) {
-                assert.equal(firstRequest.response, message);
+                // Get last message
+                assert.equal(firstRequest.response, messages[2]);
             }
+
             if (firstRequest.readyState === 4 && firstRequest.status === 200) {
                 var secondRequest = new XMLHttpRequest();
 
@@ -249,10 +252,12 @@ describe('http2-push', function () {
                         assert.equal(secondRequest.statusText, "OK");
                     }
                     if (secondRequest.readyState >= 3) {
-                        assert.equal(secondRequest.response, message);
+                        // Get last message
+                        assert.equal(secondRequest.response, messages[2]);
                     }
                     if (secondRequest.readyState === 4 && secondRequest.status === 200) {
-                        assert.equal(secondRequest.response, message);
+                        // Get last message
+                        assert.equal(secondRequest.response, messages[2]);
                         done();
                     }
                 };
