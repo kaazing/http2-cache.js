@@ -135,6 +135,47 @@ describe('http2-xhr', function () {
 
         xhr.send(null);
     });
+    
+    it('should proxy GET request status', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        socketOnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/pathNotFound');
+            response.writeHead(404, {
+                'Content-Type': 'text/html',
+                'Content-Length': message.length
+            });
+            response.write(message);
+            response.end();
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !==1 is due to bug
+            if(statechanges !== 1){
+                assert.equal(statechanges, xhr.readyState);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 404);
+                assert.equal(xhr.statusText, "Not Found");
+            }
+            // TODO assert message
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+            if (xhr.readyState === 4 && xhr.status === 404) {
+                //assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                //assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint2/pathNotFound', true);
+
+        xhr.send(null);
+    });
 
     it('should proxy POST request with event listeners', function (done) {
         var message = "Hello, Dave. You're looking well today.";
@@ -466,6 +507,70 @@ describe('http2-xhr', function () {
         };
 
         firstRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithPort', true);
+
+        firstRequest.send(null);
+    });
+
+    t('should cache GET request and not reuse response if last push was invalid', function (done) {
+        var message = "Hello, Dave. You're looking well today.";
+        var requestCount = 0;
+        socketOnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetRequestAfterFailure');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(message);
+                response.end();
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if(statechanges !== 1) {
+                assert.equal(statechanges, firstRequest.readyState);
+            }
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+            if (firstRequest.readyState >= 3) {
+                assert.equal(firstRequest.response, message);
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                var secondRequest = new XMLHttpRequest();
+
+                var statechangesocket = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechangesocket;
+                    // TODO !==1 is due to bug
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    if (secondRequest.readyState >= 3) {
+                        assert.equal(secondRequest.response, message);
+                    }
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.response, message);
+                        done();
+                    }
+                };
+                secondRequest.open('GET', 'http://cache-endpoint2/cachedGetRequestAfterFailure', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint2/cachedGetRequestAfterFailure', true);
 
         firstRequest.send(null);
     });
