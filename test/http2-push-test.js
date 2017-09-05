@@ -176,6 +176,96 @@ describe('http2-push', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
+    xit('should cache GET request and not reuse response if last push was invalid', function (done) {
+        var messages = [
+            "Hello, Dave. You're looking well today.",
+            "Do you want to be my friend, Dave ?",
+            "Affirmative, Dave. I read you. "
+        ];
+        var requestCount = 0;
+        socketOnRequest = function (request, response) {
+            requestCount++;
+            if (requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/stream');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', messages[0].length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(messages[0]);
+                response.end();
+
+                var pr = response.push({
+                    'path': '/cachedGetRequestAfterFailure',
+                    'protocol': 'http:'
+                });
+                pr.writeHead(404, {
+                    'Content-Type': 'text/html',
+                    'Content-Length': messages[1].length
+                });
+                pr.write(messages[1]);
+                pr.end();
+
+            } else if (requestCount === 2) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetRequestAfterFailure');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', messages[2].length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(messages[2]);
+                response.end();
+
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if(statechanges !== 1) {
+                assert.equal(statechanges, firstRequest.readyState);
+            }
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+            if (firstRequest.readyState >= 3) {
+                assert.equal(firstRequest.response, message);
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                var secondRequest = new XMLHttpRequest();
+
+                var statechangesocket = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechangesocket;
+                    // TODO !==1 is due to bug
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    if (secondRequest.readyState >= 3) {
+                        assert.equal(secondRequest.response, message);
+                    }
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.response, message);
+                        done();
+                    }
+                };
+                secondRequest.open('GET', 'http://cache-endpoint1/cachedGetRequestAfterFailure', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint1/cachedGetRequestAfterFailure', true);
+
+        firstRequest.send(null);
+    });
+
     it('should cache GET request and re-call onreadystatechange on pushed update', function (done) {
         var messages = [
             "Hello, Dave. You're looking well today.",
