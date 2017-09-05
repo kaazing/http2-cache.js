@@ -176,7 +176,7 @@ describe('http2-push', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
-    it('should cache GET request and not reuse response if last push was invalid', function (done) {
+    xit('should cache GET request and not reuse response if last push was invalid', function (done) {
         var messages = [
             "Hello, Dave. You're looking well today.",
             "Do you want to be my friend, Dave ?",
