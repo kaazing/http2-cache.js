@@ -129,6 +129,7 @@ describe('http2-push', function () {
 
     it('should use pushed results in cache', function (done) {
         var message = "Affirmative, Dave. I read you. ";
+        var date = new Date().toString();
         var xhr = new XMLHttpRequest();
         socketOnRequest = function (request, response) {
             assert.equal(request.url, '/stream', 'should be on streaming url');
@@ -139,7 +140,7 @@ describe('http2-push', function () {
             pr.setHeader('Content-Type', 'text/html');
             pr.setHeader('Content-Length', message.length);
             pr.setHeader('Cache-Control', 'max-age=500');
-            pr.setHeader('Date', new Date());
+            pr.setHeader('Date', date);
             pr.write(message);
             pr.end();
             var statechanges = 0;
@@ -160,7 +161,7 @@ describe('http2-push', function () {
 
                 if (xhr.readyState === 4 && xhr.status === 200) {
                     assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
-                    assert.equal(xhr.getAllResponseHeaders()['content-type'], 'text/html');
+                    assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: max-age=500\ndate: ' + date);
                     done();
                 }
             };
@@ -209,7 +210,7 @@ describe('http2-push', function () {
                     pr.setHeader('Date', new Date());
                     pr.write(messages[1]);
                     pr.end();
-                }, 1000);
+                });
             } else {
                 throw new Error("Should only get 1 request");
             }
@@ -234,7 +235,8 @@ describe('http2-push', function () {
                 statecomplete++;
             }
 
-            if (statecomplete === 1) {
+            // Wait for second push
+            if (statecomplete === 2) {
                 done();
             }
         };
