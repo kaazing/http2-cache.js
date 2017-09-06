@@ -210,7 +210,7 @@ describe('http2-push', function () {
                     pr.setHeader('Date', new Date());
                     pr.write(messages[1]);
                     pr.end();
-                }, 1000);
+                });
             } else {
                 throw new Error("Should only get 1 request");
             }
@@ -235,7 +235,8 @@ describe('http2-push', function () {
                 statecomplete++;
             }
 
-            if (statecomplete === 1) {
+            // Wait for second push
+            if (statecomplete === 2) {
                 done();
             }
         };
