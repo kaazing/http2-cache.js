@@ -511,6 +511,85 @@ describe('http2-xhr', function () {
         firstRequest.send(null);
     });
 
+    it('should not cache GET request and not reuse if error', function (done) {
+        var messages = [
+            "Hello, Dave. You're looking well today.",
+            "Do you want to be my friend, Dave ?",
+            "Affirmative, Dave. I read you. "
+        ];
+        var requestCount = 0;
+        socketOnRequest = function (request, response) {
+            requestCount++;
+            if (requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetRequestWithError');
+                response.writeHead(404, {
+                    'Content-Type': 'text/html',
+                    'Content-Length': messages[0].length
+                });
+                response.write(messages[0]);
+                response.end();
+            } else if (requestCount === 2) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/cachedGetRequestWithError');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', messages[1].length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(messages[1]);
+                response.end();
+            } else {
+                throw new Error("Should only get 2 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if(statechanges !== 1) {
+                assert.equal(statechanges, firstRequest.readyState);
+            }
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 404);
+                assert.equal(firstRequest.statusText, "Not Found");
+            }
+            if (firstRequest.readyState >= 3) {
+                assert.equal(firstRequest.response, messages[0]);
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 404) {
+                assert.equal(firstRequest.response, messages[0]);
+
+                var secondRequest = new XMLHttpRequest();
+                var statechangesocket = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechangesocket;
+                    // TODO !==1 is due to bug
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    if (secondRequest.readyState >= 3) {
+                        assert.equal(secondRequest.response, messages[1]);
+                    }
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.response, messages[1]);
+                        done();
+                    }
+                };
+                secondRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithError', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithError', true);
+
+        firstRequest.send(null);
+    });
+
     it('should cache GET request and reuse for response larger than MAX_PAYLOAD_SIZE', function (done) {
 
         var requestCount = 0;
