@@ -129,7 +129,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache update fail when no cachable statusCode provided after a cachable statusCode', function (done) {
+    it('Cache update fail when no cachable statusCode provided after a cachable statusCode and return inital cached response', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/', 
@@ -154,7 +154,7 @@ describe('http-cache', function () {
 
                     // Here is check cache has been clear
                     cache.match(requestInfo).then(function (r) {
-                        assert.equal(r, null);
+                        assert.equal(r, response1);
                         done();
                     });
                 });
