@@ -240,6 +240,21 @@ describe('http-cache', function () {
         assert.equal(header['must-revalidate'], true);
         assert.equal(header['max-age'], 3600);
 
+        header = parseCacheControl('must-revalidate, s-maxage="3601", max-age="3600"');
+        assert.ok(header);
+        assert.equal(header['must-revalidate'], true);
+        assert.equal(header['max-age'], 3601);
+        assert.equal(header['s-maxage'], 3601);
+
+        header = parseCacheControl('must-revalidate, s-maxage="3600", max-age="3601"');
+        assert.ok(header);
+        assert.equal(header['must-revalidate'], true);
+        assert.equal(header['max-age'], 3601);
+        assert.equal(header['s-maxage'], 3601);
+
+        header = parseCacheControl('must-revalidate max-age=3600');
+        assert.equal(header, null);
+
         header = parseCacheControl('must-revalidate, b =3600');
         assert.equal(header, null);
 
