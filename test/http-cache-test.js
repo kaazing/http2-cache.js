@@ -129,7 +129,73 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache update fail when no cachable statusCode provided after a cachable statusCode', function (done) {
+    it('Cache update fail when Authentication header does match', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'Authentication': 'MyFirstToken', 
+                'cache-control': 'max-age=1', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {
+            'Authentication': 'MySecondToken'
+        });
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1);
+                done();
+            });
+        });
+    });
+
+    it('Cache update fail when Authentication header does not match', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'Authentication': 'MyFirstToken', 
+                'cache-control': 'max-age=1', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {
+            'Authentication': 'MyFirstToken'
+        });
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1);
+                done();
+            });
+        });
+    });
+
+    it('Cache update fail when Authentication header does not match, unless cache-control: public', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'Authentication': 'MyFirstToken', 
+                'cache-control': 'public, max-age=1', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {
+            'Authentication': 'MySecondToken'
+        });
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1);
+                done();
+            });
+        });
+    });
+
+    it('Cache update fail when no cachable statusCode provided after a cachable statusCode and return inital cached response', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/', 
@@ -154,7 +220,7 @@ describe('http-cache', function () {
 
                     // Here is check cache has been clear
                     cache.match(requestInfo).then(function (r) {
-                        assert.equal(r, null);
+                        assert.equal(r, response1);
                         done();
                     });
                 });
@@ -179,6 +245,10 @@ describe('http-cache', function () {
 
         header = parseCacheControl('must-revalidate, max-age=a3600');
         assert.equal(header, null);
+
+        header = parseCacheControl('public, max-age=3600');
+        assert.equal(header['public'], true);
+        assert.equal(header['max-age'], 3600);
 
         header = parseCacheControl(123);
         assert.equal(header, null);
