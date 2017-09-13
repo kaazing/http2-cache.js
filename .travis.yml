@@ -5,4 +5,5 @@ node_js:
   - "7"
 script: mocha 
 env:
+  - COMMAND=lint
   - COMMAND=test
