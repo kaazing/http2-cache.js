@@ -179,7 +179,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache update fail when Authorization header does not match, unless cache-control: public', function (done) {
+    it('Cache match fail when Authorization header does not match, unless cache-control: public', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/public',
