@@ -129,7 +129,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache match when Authorization header does match', function (done) {
+    it('Cache match when authorization header does match', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/',
@@ -140,11 +140,11 @@ describe('http-cache', function () {
             'statusCode': 200
         };
         var requestInfo1 = new RequestInfo("GET", "https://example.com/", {
-            'Authorization': 'MyFirstToken'
+            'authorization': 'MyFirstToken'
         });
 
         var requestInfo2 = new RequestInfo("GET", "https://example.com/", {
-            'Authorization': 'MyFirstToken'
+            'authorization': 'MyFirstToken'
         });
         cache.put(requestInfo1, response1).then(function () {
             cache.match(requestInfo2).then(function (r) {
@@ -154,7 +154,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache match fail when Authorization header does not match', function (done) {
+    it('Cache match fail when authorization header does not match', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/',
@@ -165,11 +165,11 @@ describe('http-cache', function () {
             'statusCode': 200
         };
         var requestInfo1 = new RequestInfo("GET", "https://example.com/", {
-            'Authorization': 'MyFirstToken'
+            'authorization': 'MyFirstToken'
         });
 
         var requestInfo2 = new RequestInfo("GET", "https://example.com/", {
-            'Authorization': 'MySecondToken'
+            'authorization': 'MySecondToken'
         });
         cache.put(requestInfo1, response1).then(function () {
             cache.match(requestInfo2).then(function (r) {
@@ -179,7 +179,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache match fail when Authorization header does not match, unless cache-control: public', function (done) {
+    it('Cache match fail when authorization header does not match, unless cache-control: public', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/public',
@@ -190,11 +190,11 @@ describe('http-cache', function () {
             'statusCode': 200
         };
         var requestInfo1 = new RequestInfo("GET", "https://example.com/public", {
-            'Authorization': 'MyFirstToken'
+            'authorization': 'MyFirstToken'
         });
 
         var requestInfo2 = new RequestInfo("GET", "https://example.com/public", {
-            'Authorization': 'MySecondToken'
+            'authorization': 'MySecondToken'
         });
         cache.put(requestInfo1, response1).then(function () {
             cache.match(requestInfo2).then(function (r) {
