@@ -36,6 +36,24 @@ describe('utils', function () {
 			assert.equal(uri.host, uri.hostname + ":" + uri.port);
 			assert.equal(uri.href, url.replace(uri.hostname, uri.host));		
 		});
+
+
+		it('should add defult protocol, hostname, and port', function () {
+
+			global.window = {
+				location: {
+					hostname: 'example.com',
+					protocol: 'https:',
+					port: '8080'
+				}
+			};
+
+			var url = "path?query=1",
+				uri = parseUrl(url);
+			assert.equal(uri.port, 8080);	
+			assert.equal(uri.host, 'example.com:8080');
+			assert.equal(uri.href, "https://example.com:8080/path?query=1");
+		});
 	});	
 
 	describe('Utf8ArrayToStr', function () {
