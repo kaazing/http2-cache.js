@@ -48,7 +48,7 @@ describe('utils', function () {
 				}
 			};
 
-			var url = "path?query=1",
+			var url = "/path?query=1",
 				uri = parseUrl(url);
 			assert.equal(uri.port, 8080);	
 			assert.equal(uri.host, 'example.com:8080');
