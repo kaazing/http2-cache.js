@@ -38,7 +38,6 @@
     "collections": "~5.0.x",
     "http2.js": "https://github.com/kaazing/http2.js#bugs/polyfill-ie",
     "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
-    "timers-browserify": "^2.0.4",
     "websocket-stream": "3.3.3"
   },
   "devDependencies": {
