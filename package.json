@@ -33,12 +33,13 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
+    "bluebird": "~3.4.x",
     "browserify": "14.0.0 ",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
-    "http2.js": "https://github.com/kaazing/http2.js#master",
-    "websocket-stream": "3.3.3",
     "collections": "~5.0.x",
-    "bluebird": "~3.4.x"
+    "http2.js": "https://github.com/kaazing/http2.js#bugs/polyfill-ie",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "timers-browserify": "^2.0.4",
+    "websocket-stream": "3.3.3"
   },
   "devDependencies": {
     "chai": "3.5.0",
