@@ -274,12 +274,37 @@ describe('http-cache', function () {
             'statusCode': 200
         };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+        cache.revalidate(requestInfo);
         cache.put(requestInfo, response1).then(
             setTimeout(
                 function () {
-                    cache.revalidate(requestInfo);
                     cache.match(requestInfo).then(function (r) {
                         assert.equal(r, response1);
+                        done();
+                    });
+                }, 1100)
+        );
+    });
+
+    it('Cache returns no match if stale-while-revalidate is not expired after revalidating requestInfo', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'cache-control': 'max-age=1, stale-while-revalidate=2', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+
+        cache.revalidate(requestInfo);
+        cache.put(requestInfo, response1).then(
+            setTimeout(
+                function () {
+                    cache.validated(requestInfo);
+                    cache.match(requestInfo).then(function (r) {
+                        assert.equal(r, null);
                         done();
                     });
                 }, 1100)
