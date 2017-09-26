@@ -209,8 +209,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
+                'cache-control': 'max-age=30', 
                 'date': new Date()}, 
                 'statusCode': 200
             };
@@ -233,6 +232,27 @@ describe('http-cache', function () {
                         done();
                     });
                 });
+            });
+        });
+    });
+
+    it('Cache returns match if stale-while-revalidate is not expired while revalidating requestInfo', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 'max-age=1, stale-while-revalidate=30',
+                'date': new Date()}, 
+                'statusCode': 200
+            };
+
+        // TODO add test cache.revalidate|validated|isRevalidating
+
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1);
+                done();
             });
         });
     });
