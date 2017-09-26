@@ -1,4 +1,4 @@
-/* global console */
+/* global */
 var chai = require('chai');
 var assert = chai.assert;
 
@@ -172,6 +172,147 @@ describe('http2-push', function () {
         // There is a race between xhr.js and push with out subscribe
         xhr.subscribe(function () {
             xhr.unsubscribe();
+            xhr.send(null);
+        });
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+    });
+
+    it('should not use pushed results in cache if expired', function (done) {
+        var message = "Affirmative, Dave. I read you. While you revalidating.";
+        var date = new Date().toString();
+        var xhr = new XMLHttpRequest();
+
+        var requestCount = 0;
+        var socketResponse = null;
+        var responseCacheControl = 'max-age=0, stale-while-revalidate=0';
+        socketOnRequest = function (request, response) {
+            socketResponse = response;
+            requestCount++;
+
+            // Initial request
+            if (requestCount === 1) {
+                assert.equal(request.url, '/stream', 'should be on streaming url');
+
+                var pr = response.push({
+                    'path': '/pushedCacheWhileRevalidatingExpired',
+                    'protocol': 'http:'
+                });
+                pr.setHeader('Content-Type', 'text/html');
+                pr.setHeader('Content-Length', message.length);
+                pr.setHeader('Cache-Control', responseCacheControl);
+                pr.setHeader('Date', date);
+                pr.write(message);
+                pr.end();
+
+            // stale-while-revalidate=0 and max-age=0 so new request incoming
+            } else if (requestCount === 2) {
+                assert.equal(request.url, '/pushedCacheWhileRevalidatingExpired', 'should be on streaming url');
+
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', message.length);
+                response.setHeader('Cache-Control', responseCacheControl);
+                response.setHeader('Date', date);
+                response.write(message);
+                response.end();
+                
+            } else {
+                throw new Error("Should only get 2 request");
+            }
+        };
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !=1 is due to bug
+            if(statechanges !== 1) {
+                assert.equal(xhr.readyState, statechanges);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint1/pushedCacheWhileRevalidatingExpired', true);
+
+        // There is a race between xhr.js and push with out subscribe
+        xhr.subscribe(function () {
+            setTimeout(function () {
+                xhr.send(null);
+            }, 1000);
+        });
+
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+    });
+
+    it('should use pushed results in cache while stale-while-revalidate', function (done) {
+        var message = "Affirmative, Dave. I read you. While you revalidating.";
+        var date = new Date().toString();
+        var xhr = new XMLHttpRequest();
+
+        var requestCount = 0;
+        var socketResponse = null;
+        var responseCacheControl = 'max-age=0, stale-while-revalidate=1';
+        socketOnRequest = function (request, response) {
+            socketResponse = response;
+            requestCount++;
+
+            // Initial request
+            if (requestCount === 1) {
+                assert.equal(request.url, '/stream', 'should be on streaming url');
+
+                var pr = response.push({
+                    'path': '/pushedCacheWhileRevalidating',
+                    'protocol': 'http:'
+                });
+                pr.setHeader('Content-Type', 'text/html');
+                pr.setHeader('Content-Length', message.length);
+                pr.setHeader('Cache-Control', responseCacheControl);
+                pr.setHeader('Date', date);
+                pr.write(message);
+                pr.end();
+
+            // No more cause stale-while-revalidate>0
+            }  else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !=1 is due to bug
+            if(statechanges !== 1) {
+                assert.equal(xhr.readyState, statechanges);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint1/pushedCacheWhileRevalidating', true);
+
+        // There is a race between xhr.js and push with out subscribe
+        xhr.subscribe(function () {
             xhr.send(null);
         });
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
