@@ -1,6 +1,6 @@
 {
   "name": "http2-cache",
-  "version": "0.1.4",
+  "version": "0.1.7",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
@@ -36,7 +36,7 @@
     "bluebird": "~3.4.x",
     "browserify": "14.0.0 ",
     "collections": "~5.0.x",
-    "http2.js": "https://github.com/kaazing/http2.js#bugs/polyfill-ie",
+    "http2.js": "https://github.com/kaazing/http2.js#develop",
     "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "websocket-stream": "3.3.3"
   },
