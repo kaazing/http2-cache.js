@@ -590,6 +590,146 @@ describe('http2-xhr', function () {
         firstRequest.send(null);
     });
 
+    it('should return responseType when proxyfied', function (done) {
+
+        var message = '{"message": "Hello, Dave. You\'re looking well today."}';
+        var date =  new Date().toString();
+        var responseTypes = [
+            {
+                requestType: 'arraybuffer',
+                responseType: 'ArrayBuffer'
+            },
+            {
+                requestType: 'text',
+                responseType: 'String'
+            },
+            {
+                requestType: 'json',
+                responseType: 'Object'
+            },
+            /*
+            {
+                requestType: 'blob',
+                responseType: 'Blob'
+            },
+            {
+                requestType: 'document',
+                responseType: 'HTMLNode'
+            }
+            */
+        ];
+
+        socketOnRequest = function (request, response) {
+             // TODO check request headers and requests responses
+            assert.equal(request.url, '/path/proxy/responseType');
+            response.setHeader('Content-Type', 'application/json');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.setHeader('date', date);
+            response.write(message);
+            response.end();
+        };
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        responseTypes.forEach(function (assertType) {
+            XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+            var xhr = new XMLHttpRequest();
+
+            var statechanges = 0;
+            xhr.onreadystatechange = function () {
+                ++statechanges;
+
+                if (xhr.readyState >= 2) {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                }
+
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    assert.equal(xhr.responseType, assertType.requestType);
+                    assert.equal(xhr.response.constructor.name, assertType.responseType);
+                    doneN(responseTypes.length);
+                }
+            };
+
+            xhr.open('GET', 'http://localhost:7080/path/proxy/responseType', true);
+            xhr.responseType = assertType.requestType;
+            xhr.send(null);
+        });
+    });
+
+    it('should return responseType when NOT proxyfied', function (done) {
+
+        var date =  new Date().toString();
+        var responseTypes = [
+            {
+                requestType: 'arraybuffer',
+                responseType: 'ArrayBuffer'
+            },
+            {
+                requestType: 'text',
+                responseType: 'String'
+            },
+            {
+                requestType: 'json',
+                responseType: 'Object'
+            },
+            /*
+            {
+                requestType: 'blob',
+                responseType: 'Blob'
+            },
+            {
+                requestType: 'document',
+                responseType: 'HTMLNode'
+            }
+            */
+        ];
+
+        socketOnRequest = function (request, response) {
+            throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
+        };
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        responseTypes.forEach(function (assertType) {
+            XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+            var xhr = new XMLHttpRequest();
+
+            var statechanges = 0;
+            xhr.onreadystatechange = function () {
+                ++statechanges;
+
+                if (xhr.readyState >= 2) {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                }
+
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    assert.equal(assertType.requestType, xhr.responseType);
+                    assert.equal(assertType.responseType, xhr.response.constructor.name);
+                    doneN(responseTypes.length);
+                }
+            };
+
+            xhr.open('GET', 'http://localhost:7080/path/responseType', true);
+            xhr.responseType = assertType.requestType;
+            xhr.send(null);
+        });
+    });
+
     it('should cache GET request and reuse for response larger than MAX_PAYLOAD_SIZE', function (done) {
 
         var requestCount = 0;
