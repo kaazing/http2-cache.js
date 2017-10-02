@@ -51,6 +51,7 @@ server.  The configurations should be of the following form:
     {  
        "push": "optional-path-that-is-opened-for-pushes",
        "transport": "wss://where-the-underlying-ws-transport-connects:443/",
+       "clientLogLevel": "debug",
        "proxy":[  
           "http://origin-to-send-via-http2:80/path/",
           "http://origin-to-send-via-http2:80/path2/",

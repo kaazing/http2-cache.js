@@ -3,7 +3,7 @@ node_js:
   - "4"
   - "6"
   - "7"
-script: mocha 
+script: npm run $COMMAND
 env:
   - COMMAND=lint
   - COMMAND=test

@@ -49,9 +49,10 @@ describe('http-cache', function () {
             'headers': {
                 'cache-control': 
                 'max-age=30', 
-                'date': new Date()}, 
-                'statusCode': 200
-            };
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
@@ -68,9 +69,10 @@ describe('http-cache', function () {
             'headers': {
                 'cache-control': 
                 'max-age=30', 
-                'date': new Date()}, 
-                'statusCode': 200
-            };
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'no-cache'});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
@@ -209,17 +211,18 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
-                'date': new Date()}, 
-                'statusCode': 200
-            };
+                'cache-control': 'max-age=30', 
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
         var response2 = {
             'href': 'https://example.com/', 
             'headers': {
-                'date': new Date()}, 
-                'statusCode': 400
-            };
+                'date': new Date()
+            }, 
+            'statusCode': 400
+        };
         var requestInfo = new RequestInfo("GET", "https://example.com/", {});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
@@ -235,6 +238,77 @@ describe('http-cache', function () {
                 });
             });
         });
+    });
+
+
+    it('Cache returns no match when expires even with stale-while-revalidate if not revalidating', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'cache-control': 'max-age=1, stale-while-revalidate=2', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+        cache.put(requestInfo, response1).then(
+            setTimeout(
+                function () {
+                    cache.match(requestInfo).then(function (r) {
+                        assert.equal(r, null);
+                        done();
+                    });
+                }, 1100)
+        );
+    });
+
+    it('Cache returns match if stale-while-revalidate is not expired while revalidating requestInfo', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'cache-control': 'max-age=1, stale-while-revalidate=2', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+        cache.revalidate(requestInfo);
+        cache.put(requestInfo, response1).then(
+            setTimeout(
+                function () {
+                    cache.match(requestInfo).then(function (r) {
+                        assert.equal(r, response1);
+                        done();
+                    });
+                }, 1100)
+        );
+    });
+
+    it('Cache returns no match if stale-while-revalidate is not expired after revalidating requestInfo', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'cache-control': 'max-age=1, stale-while-revalidate=2', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {});
+
+        cache.revalidate(requestInfo);
+        cache.put(requestInfo, response1).then(
+            setTimeout(
+                function () {
+                    cache.validated(requestInfo);
+                    cache.match(requestInfo).then(function (r) {
+                        assert.equal(r, null);
+                        done();
+                    });
+                }, 1100)
+        );
     });
 
     // https://github.com/roryf/parse-cache-control/blob/master/LICENSE
