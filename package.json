@@ -7,6 +7,7 @@
     "lint": "jshint",
     "pretest": "npm run lint",
     "test": "mocha",
+    "test:http2-xhr": "mocha --grep http2-xhr",
     "test-e2e-build": "browserify test/*.js -o e2e-test/tests.js",
     "test-2e2": "concurrently \"http-server -p 8085\" \"open http://localhost:8085/e2e-test/run.html\"",
     "build": "npm run test && node postinstall.js",
@@ -36,8 +37,9 @@
     "bluebird": "~3.4.x",
     "browserify": "14.0.0 ",
     "collections": "~5.0.x",
-    "http2.js": "https://github.com/kaazing/http2.js#develop",
+    "http2.js": "https://github.com/kaazing/http2.js#bugs/ie-support",
     "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
   },
   "devDependencies": {
