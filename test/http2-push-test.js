@@ -261,7 +261,7 @@ describe('http2-push', function () {
 
         var requestCount = 0;
         var socketResponse = null;
-        var responseCacheControl = 'max-age=0, stale-while-revalidate=1';
+        var responseCacheControl = 'max-age=0, stale-while-revalidate=10';
         socketOnRequest = function (request, response) {
             socketResponse = response;
             requestCount++;
