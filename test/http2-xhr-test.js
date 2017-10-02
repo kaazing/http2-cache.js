@@ -104,6 +104,55 @@ describe('http2-xhr', function () {
 
     });
 
+    it('should timeout proxyfied GET request', function (done) {
+
+        var date =  new Date().toString(),
+            requestCount = 0,
+            timeout = 100;
+        socketOnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // Will be sent to late.
+                setTimeout(function () {
+                    var message = '{"date": ' + Date.now() + '};';
+                    assert.equal(request.url, '/path/proxy');
+                    response.setHeader('Content-Type', 'application/json');
+                    response.setHeader('Content-Length', message.length);
+                    response.setHeader('Cache-Control', 'private, max-age=0');
+                    response.setHeader('date', date);
+                    response.write(message);
+                    response.end();
+                }, timeout + 1);
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 0);
+                assert.equal(xhr.statusText, "");
+            }
+
+            if (xhr.readyState === 4) {
+                throw new Error("Should not call onreadystatechange readyState 4");
+            }
+        };
+
+        xhr.ontimeout = function () {
+            assert.equal(xhr.response, null);
+            done();
+        };
+
+        xhr.open('GET', 'http://localhost:7080/path/proxy', true);
+        xhr.timeout = timeout;
+        xhr.send(null);
+
+    });
+
     it('should proxy GET request with event listeners', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         socketOnRequest = function (request, response) {
