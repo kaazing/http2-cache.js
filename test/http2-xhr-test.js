@@ -144,7 +144,9 @@ describe('http2-xhr', function () {
 
         xhr.ontimeout = function () {
             assert.equal(xhr.response, null);
-            done();
+
+            // Make sure xhr.readyState === 4 is never called
+            setTimeout(done, 100);
         };
 
         xhr.open('GET', 'http://localhost:7080/path/proxy', true);
