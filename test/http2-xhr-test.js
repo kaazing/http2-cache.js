@@ -715,6 +715,48 @@ describe('http2-xhr', function () {
         });
     });
 
+    it('should return Throw DOMException when responseText is used with invalid responseType', function (done) {
+        
+        var message = '{"message": "Hello, Dave. You\'re looking well today."}';
+        var date =  new Date().toString();
+        socketOnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/path/proxy/responseTypeBadText');
+            response.setHeader('Content-Type', 'application/json');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.setHeader('date', date);
+            response.write(message);
+            response.end();
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.responseType, 'json');
+                assert.equal(typeof xhr.response, 'object');
+                try {
+                    assert.equal(xhr.responseText);
+                } catch (err) {
+                    done();   
+                }
+            }
+        };
+        
+        xhr.open('GET', 'http://localhost:7080/path/proxy/responseTypeBadText', true);
+        xhr.responseType = 'json';
+        xhr.send(null);
+    });
+
     it('should return responseType when NOT proxyfied', function (done) {
 
         var date =  new Date().toString();
