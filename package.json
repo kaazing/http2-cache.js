@@ -4,7 +4,7 @@
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "lint": "jshint",
+    "lint": "jshint .",
     "pretest": "npm run lint",
     "test": "mocha",
     "test:http2-xhr": "mocha --grep http2-xhr",

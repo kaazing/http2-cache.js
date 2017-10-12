@@ -1,4 +1,4 @@
-/* global console */
+/* global console, global */
 var mergeTypedArrays = require('../lib/utils').mergeTypedArrays,
 	Utf8ArrayToStr = require('../lib/utils').Utf8ArrayToStr,
 	parseUrl = require('../lib/utils').parseUrl,
