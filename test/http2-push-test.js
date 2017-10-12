@@ -1,4 +1,4 @@
-/* global */
+/* global require */
 var chai = require('chai');
 var assert = chai.assert;
 
@@ -510,16 +510,16 @@ describe('http2-push', function () {
                 assert.equal(request.url, '/cachedGetRequestAfterFailure');
                 
 
-                var pr = response.push({
+                var pr2 = response.push({
                     'path': '/cachedGetRequestAfterFailure',
                     'protocol': 'http:'
                 });
-                pr.setHeader('Content-Type', 'text/html');
-                pr.setHeader('Content-Length', messages[2].length);
-                pr.setHeader('Cache-Control', 'max-age=500');
-                pr.setHeader('Date', new Date());
-                pr.write(messages[2]);
-                pr.end();
+                pr2.setHeader('Content-Type', 'text/html');
+                pr2.setHeader('Content-Length', messages[2].length);
+                pr2.setHeader('Cache-Control', 'max-age=500');
+                pr2.setHeader('Date', new Date());
+                pr2.write(messages[2]);
+                pr2.end();
 
             } else {
                 throw new Error("Should only get 1 request");

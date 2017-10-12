@@ -6,12 +6,12 @@
  * @date: 2014-02-24
  *
  */
-
+/* globals console, process */
 // Get platform from node
 var os = require('os');
 var platform = os.platform();
 
-if (platform === 'darwin' || platform == 'linux' || platform === 'win32') {
+if (platform === 'darwin' || platform === 'linux' || platform === 'win32') {
   // Call child process and execute
   var exec = require('child_process').exec;
 
