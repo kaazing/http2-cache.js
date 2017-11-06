@@ -136,7 +136,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/',
             'headers': {
-                'cache-control': 'max-age=1', 
+                'cache-control': 'max-age=1',
                 'date': new Date()
             },
             'statusCode': 200
@@ -151,31 +151,6 @@ describe('http-cache', function () {
         cache.put(requestInfo1, response1).then(function () {
             cache.match(requestInfo2).then(function (r) {
                 assert.equal(r, response1);
-                done();
-            });
-        });
-    });
-
-    it('Cache match fail when authorization header does not match', function (done) {
-        var cache = new Cache();
-        var response1 = {
-            'href': 'https://example.com/',
-            'headers': {
-                'cache-control': 'max-age=1', 
-                'date': new Date()
-            },
-            'statusCode': 200
-        };
-        var requestInfo1 = new RequestInfo("GET", "https://example.com/", {
-            'authorization': 'MyFirstToken'
-        });
-
-        var requestInfo2 = new RequestInfo("GET", "https://example.com/", {
-            'authorization': 'MySecondToken'
-        });
-        cache.put(requestInfo1, response1).then(function () {
-            cache.match(requestInfo2).then(function (r) {
-                assert.equal(r, null);
                 done();
             });
         });
