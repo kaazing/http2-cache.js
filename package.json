@@ -38,7 +38,6 @@
     "browserify": "14.0.0 ",
     "collections": "~5.0.x",
     "http2.js": "4.0.1",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
   },
@@ -48,6 +47,7 @@
     "http-server": "^0.10.0",
     "jshint": "2.9.4",
     "mocha": "3.2.0",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
     "sinon": "1.17.7",
     "spdy": "3.4.4 ",
