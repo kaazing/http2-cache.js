@@ -23,7 +23,7 @@
   "production": true,
   "exclude": [
     "example",
-    "integration-test"
+    "integration-test",
     "lib",
     "test"
   ],
