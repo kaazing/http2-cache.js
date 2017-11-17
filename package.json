@@ -22,12 +22,10 @@
   ],
   "production": true,
   "exclude": [
-    "build.js",
     "example",
-    "lib",
-    "test",
-    "e2e-test",
     "integration-test"
+    "lib",
+    "test"
   ],
   "author": "dpwspoon",
   "license": "Apache-2.0",
