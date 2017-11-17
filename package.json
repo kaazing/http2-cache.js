@@ -10,8 +10,7 @@
     "test:http2-xhr": "mocha --grep http2-xhr",
     "test-e2e-build": "browserify test/*.js -o e2e-test/tests.js",
     "test-2e2": "concurrently \"http-server -p 8085\" \"open http://localhost:8085/e2e-test/run.html\"",
-    "build": "npm run test && node postinstall.js",
-    "postinstall": "node postinstall.js"
+    "build": "npm run test && node build.js"
   },
   "repository": {
     "type": "git",
@@ -23,8 +22,13 @@
     "sandbox",
     "push"
   ],
+  "production": true,
   "exclude": [
+    "build.js",
+    "example",
+    "lib",
     "test",
+    "e2e-test",
     "integration-test"
   ],
   "author": "dpwspoon",
@@ -35,13 +39,13 @@
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
     "bluebird": "~3.4.x",
-    "browserify": "14.0.0 ",
     "collections": "~5.0.x",
     "http2.js": "4.0.1",
     "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
   },
   "devDependencies": {
+    "browserify": "14.0.0 ",
     "chai": "3.5.0",
     "concurrently": "^3.5.0",
     "http-server": "^0.10.0",
