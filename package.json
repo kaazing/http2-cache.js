@@ -8,7 +8,7 @@
     "pretest": "npm run lint",
     "test": "mocha",
     "test:http2-xhr": "mocha --grep http2-xhr",
-    "build": "browserify --standalone http2-cache ./lib/http2-cache.js | derequire > ./index.js"
+    "build": "browserify ./lib/http2-cache.js | derequire > ./index.js"
   },
   "repository": {
     "type": "git",
@@ -47,8 +47,8 @@
     "derequire": "^2.0.6",
     "http-server": "^0.10.0",
     "jshint": "2.9.4",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "mocha": "3.2.0",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
     "sinon": "1.17.7",
     "spdy": "3.4.4 ",
