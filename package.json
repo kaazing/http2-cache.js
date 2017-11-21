@@ -2,14 +2,8 @@
   "name": "http2-cache",
   "version": "0.2.3",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
-  "main": "index.js",
-  "scripts": {
-    "lint": "jshint .",
-    "pretest": "npm run lint",
-    "test": "mocha",
-    "test:http2-xhr": "mocha --grep http2-xhr",
-    "build": "browserify ./lib/http2-cache.js | derequire > ./index.js"
-  },
+  "author": "dpwspoon",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kaazing/http2-cache.js.git"
@@ -20,6 +14,25 @@
     "sandbox",
     "push"
   ],
+  "bugs": {
+    "url": "https://github.com/kaazing/http2-cache.js/issues"
+  },
+  "homepage": "https://github.com/kaazing/http2-cache.js#readme",
+  "main": "lib/http2-cache.js",
+  "overlay": {
+    "browser": {
+      "main": "index.js",
+      "redirects": {
+        "lib/http2-cache.js": "index.js"
+      },
+      "mappings": {
+        "bluebird": {
+          "name": "bluebird",
+          "location": "node_modules/bluebird"
+        }
+      }
+    }
+  },
   "production": true,
   "exclude": [
     "example",
@@ -27,14 +40,15 @@
     "lib",
     "test"
   ],
-  "author": "dpwspoon",
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/kaazing/http2-cache.js/issues"
+  "scripts": {
+    "lint": "jshint .",
+    "pretest": "npm run lint",
+    "test": "mocha",
+    "test:http2-xhr": "mocha --grep http2-xhr",
+    "build": "browserify ./lib/http2-cache.js | derequire > ./index.js"
   },
-  "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
-    "bluebird": "~3.4.x",
+    "bluebird": "^3.5.1",
     "collections": "~5.0.x",
     "http2.js": "4.0.1",
     "object-keys": "^1.0.11",
