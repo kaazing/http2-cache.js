@@ -48,7 +48,6 @@
     "build": "browserify ./lib/http2-cache.js | derequire > ./index.js"
   },
   "dependencies": {
-    "bluebird": "^3.5.1",
     "collections": "~5.0.x",
     "http2.js": "4.0.1",
     "object-keys": "^1.0.11",
