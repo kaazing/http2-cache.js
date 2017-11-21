@@ -18,21 +18,8 @@
     "url": "https://github.com/kaazing/http2-cache.js/issues"
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
-  "main": "lib/http2-cache.js",
-  "overlay": {
-    "browser": {
-      "main": "index.js",
-      "redirects": {
-        "lib/http2-cache.js": "index.js"
-      },
-      "mappings": {
-        "bluebird": {
-          "name": "bluebird",
-          "location": "node_modules/bluebird"
-        }
-      }
-    }
-  },
+  "main": "./lib/http2-cache.js",
+  "browser": "./index.js",
   "production": true,
   "exclude": [
     "example",
