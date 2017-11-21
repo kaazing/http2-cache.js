@@ -32,7 +32,7 @@
     "pretest": "npm run lint",
     "test": "mocha",
     "test:http2-xhr": "mocha --grep http2-xhr",
-    "build": "browserify ./lib/http2-cache.js | derequire > ./index.js"
+    "build": "browserify ./lib/http2-cache.js > ./index.js"
   },
   "dependencies": {
     "collections": "~5.0.x",
@@ -44,7 +44,6 @@
     "browserify": "14.0.0 ",
     "chai": "3.5.0",
     "concurrently": "^3.5.0",
-    "derequire": "^2.0.6",
     "http-server": "^0.10.0",
     "jshint": "2.9.4",
     "mocha": "3.2.0",
