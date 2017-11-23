@@ -21,6 +21,9 @@
     "sandbox",
     "push"
   ],
+  "bin": {
+    "http2-cache": "bin/http2-cache.js"
+  },
   "exclude": [
     "test",
     "integration-test"
