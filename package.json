@@ -48,7 +48,7 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
-    "collections": "~5.0.x",
+    "collections": "^5.1.0",
     "http2.js": "4.0.1",
     "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
