@@ -36,8 +36,10 @@
     "push"
   ],
   "exclude": [
+    "example", 
     "test",
-    "integration-test"
+    "integration-test",
+    "build.js"
   ],
   "author": "dpwspoon",
   "license": "Apache-2.0",
