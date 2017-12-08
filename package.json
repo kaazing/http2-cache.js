@@ -34,7 +34,7 @@
   "dependencies": {
     "bluebird": "~3.4.x",
     "browserify": "14.0.0 ",
-    "collections": "~5.0.x",
+    "collections": "^5.1.0",
     "http2.js": "4.0.1",
     "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
