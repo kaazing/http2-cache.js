@@ -36,7 +36,7 @@
     "push"
   ],
   "exclude": [
-    "example", 
+    "example",
     "test",
     "integration-test",
     "build.js"
@@ -48,15 +48,12 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
-    "bluebird": "~3.4.x",
     "collections": "~5.0.x",
     "http2.js": "4.0.1",
     "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
   },
-  "browserDependencies": {
-
-  },
+  "browserDependencies": {},
   "devDependencies": {
     "browserify": "14.0.0 ",
     "chai": "3.5.0",
