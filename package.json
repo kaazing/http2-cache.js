@@ -1,14 +1,13 @@
 {
   "name": "http2-cache",
-  "version": "0.1.7",
+  "version": "0.2.3",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "scripts": {
-    "lint": "jshint",
+    "lint": "jshint .",
     "pretest": "npm run lint",
     "test": "mocha",
-    "test-e2e-build": "browserify test/*.js -o e2e-test/tests.js",
-    "test-2e2": "concurrently \"http-server -p 8085\" \"open http://localhost:8085/e2e-test/run.html\"",
+    "test:http2-xhr": "mocha --grep http2-xhr",
     "build": "npm run test && node postinstall.js",
     "postinstall": "node postinstall.js"
   },
@@ -35,9 +34,9 @@
   "dependencies": {
     "bluebird": "~3.4.x",
     "browserify": "14.0.0 ",
-    "collections": "~5.0.x",
-    "http2.js": "https://github.com/kaazing/http2.js#develop",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "collections": "^5.1.0",
+    "http2.js": "4.0.1",
+    "object-keys": "^1.0.11",
     "websocket-stream": "3.3.3"
   },
   "devDependencies": {
@@ -46,6 +45,7 @@
     "http-server": "^0.10.0",
     "jshint": "2.9.4",
     "mocha": "3.2.0",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
     "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
     "sinon": "1.17.7",
     "spdy": "3.4.4 ",
