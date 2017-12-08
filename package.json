@@ -1,8 +1,8 @@
 {
   "name": "http2-cache",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
-  "main": "lib/http2-cache.js",
+  "main": "index.js",
   "browser": "index.js",
   "overlay": {
     "browser": {
