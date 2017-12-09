@@ -7,8 +7,9 @@ script: npm run $COMMAND
 env:
   - COMMAND=lint
   - COMMAND=test
-  - COMMAND=test:karma-travis
   - COMMAND=build
+  - COMMAND=build:integration
+  - COMMAND=test:karma-travis
 before_install:
   - "npm set legacy-bundling=true"
   - export CHROME_BIN=chromium-browser
