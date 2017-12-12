@@ -1,1785 +1,6 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var http2 = require('http2.js');
 
-// TODO extend AGENT
-function Http2CacheAgent() {
-	http2.Agent.apply(this, arguments);
-}
-
-Http2CacheAgent.prototype = Object.create(http2.Agent.prototype, {
-	// TODO override http2.Agent
-});
-
-exports.Agent = Http2CacheAgent;
-},{"http2.js":82}],2:[function(require,module,exports){
-var EventEmitter = require('events').EventEmitter,
-    util = require('util'),
-    redefine = require('./utils').redefine;
-
-function CacheListener(configuration) {
-
-    var cl = this;
-    redefine(configuration.cache, 'put', function (k, v) {
-        var self = this;
-        return new Promise(function (resolve, reject) {
-            self._put(k, v).then(function () {
-                if (self.debug) {
-                    self._log.debug("Cached response: " + k.href);
-                }
-                cl.emit('cached', k.href);
-                resolve();
-            }).catch(reject);
-        });
-    });
-
-    redefine(configuration.cache, 'match', function (k) {
-        var self = this;
-        return new Promise(function (resolve, reject) {
-            self._match(k).then(function (response) {
-                if (self.debug) {
-                    if(response){
-                        self._log.debug("Using cached response for request to: " + k.href);
-                    }else{
-                        self._log.debug("Cache miss for request: " + k.href);
-                    }
-
-                }
-                resolve(response);
-            }).catch(reject);
-        });
-    });
-
-    EventEmitter.call(this);
-}
-
-util.inherits(CacheListener, EventEmitter);
-
-
-module.exports = {
-    CacheListener: CacheListener
-};
-},{"./utils":8,"events":17,"util":56}],3:[function(require,module,exports){
-var Dict = require("collections/dict"),
-    logger = require('./logger'),
-    keys = require('object-keys'),
-    Map = require("collections/map");
-
-// https://github.com/roryf/parse-cache-control/blob/master/LICENSE
-/*
- Cache-Control   = 1#cache-directive
- cache-directive = token [ "=" ( token / quoted-string ) ]
- token           = [^\x00-\x20\(\)<>@\,;\:\\"\/\[\]\?\=\{\}\x7F]+
- quoted-string   = "(?:[^"\\]|\\.)*"
-*/
-//                             1: directive                                        =   2: token                                              3: quoted-string
-
-function parseMaxAge(maxAge) {
-    // Only parse once
-    if (typeof maxAge === 'number') {
-        return maxAge;
-    }
-    return parseInt(maxAge, 10);
-}
-
-function getMaxAgeHeaderName(header) {
-    if (header['max-age'] && header['s-maxage']) {
-        // Get bigest value of both
-        return parseInt(header['max-age'], 10) < parseInt(header['s-maxage'], 10) ? 's-maxage' : 'max-age';
-    } else {
-        return 'max-age';
-    }
-}
-
-var PARSE_CACHE_CONTROL_REG = /(?:^|(?:\s*\,\s*))([^\x00-\x20\(\)<>@\,;\:\\"\/\[\]\?\=\{\}\x7F]+)(?:\=(?:([^\x00-\x20\(\)<>@\,;\:\\"\/\[\]\?\=\{\}\x7F]+)|(?:\"((?:[^"\\]|\\.)*)\")))?/g;
-function parseCacheControl(field) {
-
-    if (typeof field !== 'string') {
-        return null;
-    }
-
-    var header = {};
-    var error = field.replace(PARSE_CACHE_CONTROL_REG, function ($0, $1, $2, $3) {
-        var value = $2 || $3;
-        header[$1] = value ? value.toLowerCase() : true;
-        return '';
-    });
-
-    var maxAgeHeaderName = getMaxAgeHeaderName(header),
-        maxAge = header[maxAgeHeaderName];
-
-    if (maxAge) {
-        maxAge = parseMaxAge(maxAge);
-        if (isNaN(maxAge)) {
-            return null;
-        } else if (maxAge) {
-
-            if (header['s-maxage']) {
-                header['s-maxage'] = maxAge;
-            }
-
-            header['max-age'] = maxAge;
-        }   
-    }
-
-    return (error ? null : header);
-}
-
-function getCacheControlHeaders(response) {
-    return response.headers['cache-control'];
-}
-
-//////////////////////////////////////////// Request Info ////////////////////////////////////////////
-
-function getRequestInfoHeaders(requestInfo, headers) {
-
-    // Make headers and Object to match response (see parseCacheControl and getCacheControlHeaders)
-    if (headers instanceof Map) {
-        var headerMap = headers;
-        headers = {};
-        headerMap.forEach(function(value, key) {
-             headers[key] = value;
-        });
-    }
-
-    // Create read-only prop on headers Object
-    var requestInfoHeaders = requestInfo.headers || {};
-    Object.keys(headers).forEach(function(key) {
-        Object.defineProperty(requestInfoHeaders, key, {
-            configurable: false,
-            writable: false,
-            value: headers[key]
-        });
-    });
-
-    return requestInfoHeaders;
-}
-
-var RequestInfo = function (method, href, headers) {
-    var self = this;
-    self.method = method;
-    self.href = href;
-    self.headers = getRequestInfoHeaders(self, headers);
-
-    var cacheControlHeader = getCacheControlHeaders(self);
-    self.cacheDirectives = parseCacheControl(cacheControlHeader);
-
-    self.hash = self.method + '^' + self.href;
-};
-
-//////////////////////////////////////////// Cache ////////////////////////////////////////////
-
-function Cache(options) {
-    var self = this;
-    options = options || {};
-
-    // Init debug/log
-    self.debug = options.debug;
-    self._log = options.log || (self.debug ? logger.consoleLogger : logger.defaultLogger);
-
-    // mapping from hash of request info to time ordered list or responses
-    this._requestInfoToResponses = new Dict();
-    this._requestInfoRevalidating = new Dict();
-}
-
-var cp = Cache.prototype;
-
-cp.setDebug = function (debug) {
-    this._debug = debug;
-};
-
-function getExpireTime(response, cacheDirectives, revalidating) {
-    
-    var maxAgeAt = -1,
-        staleButRevalidateAt = -1;
-
-
-    var date = response.headers.date;
-    if (!date) {
-        // TODO RFC error here, maybe we should ignore the request
-        date = new Date().getTime();
-    } else {
-        date = new Date(date).getTime();
-    }
-
-    if (cacheDirectives['max-age']) {
-        maxAgeAt = date + (cacheDirectives['max-age'] * 1000);
-    }
-
-    if (revalidating && cacheDirectives['stale-while-revalidate']) {
-        staleButRevalidateAt = date + (cacheDirectives['stale-while-revalidate'] * 1000);
-    }
-
-    return maxAgeAt > staleButRevalidateAt ? maxAgeAt : staleButRevalidateAt;
-}
-
-function satisfiesRequest(requestInfo, candidate, candidateHash, revalidating) {
-
-    var currentTime = new Date().getTime(), // TODO get time from requestInfo ?
-        cacheControlHeaders = getCacheControlHeaders(candidate),
-        cacheResponseDirectives = parseCacheControl(cacheControlHeaders);
-
-    return getExpireTime(candidate, cacheResponseDirectives, revalidating) > currentTime && 
-        requestInfo.hash === candidateHash;
-}
-
-var CACHEABLE_BY_DEFAULT_STATUS_CODES = [200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501];
-function isCacheableResponse(response, cacheResponseDirectives) {
-
-    if (CACHEABLE_BY_DEFAULT_STATUS_CODES.indexOf(response.statusCode) === -1) {
-        return false;
-    }
-
-    var cacheControlHeaders = getCacheControlHeaders(response);
-    if (cacheControlHeaders) {
-        cacheResponseDirectives = cacheResponseDirectives || parseCacheControl(cacheControlHeaders);
-        if (cacheResponseDirectives['max-age']) {
-            return true;
-        } else if(cacheResponseDirectives['stale-while-revalidate']) {
-            return true;
-        }
-    }
-    return false;
-}
-
-cp.match = function (requestInfo/*, options*/) {
-
-    var self = this;
-    return new Promise(function (resolve, reject) {
-        var response = null;
-
-        if (!(requestInfo instanceof RequestInfo)) {
-            reject(new TypeError("Invalid requestInfo argument"));
-        } else {
-
-            var requestCacheDirectives = requestInfo.cacheDirectives,
-                requestIsRevalidating = self.isRevalidating(requestInfo);
-
-            if (
-                // Cache by default 
-                // TODO why ?
-                requestCacheDirectives === null || 
-                    // Bypass cache
-                    !requestCacheDirectives['no-cache']
-            ) {
-
-                var candidate, candidateHash,
-                    candidates = self._requestInfoToResponses.get(requestInfo.hash) || new Dict(),
-                    cadidatesHashs = candidates.keys();
-
-                while (
-                    response === null &&
-                        (candidateHash = cadidatesHashs.next()) &&
-                            (candidateHash.done === false)
-                ) {
-
-                    candidate = candidateHash.value && 
-                                    candidates.get(candidateHash.value);
-
-                    if (
-                        candidate && 
-                            satisfiesRequest(requestInfo, candidate, candidateHash.value, requestIsRevalidating)
-                    ) {
-                        response = candidate;
-                    }
-                }                
-            }
-            
-            resolve(response);   
-        }
-    });
-};
-
-function isExpired(candidate, currentTime) {
-    var cacheControlHeaders = getCacheControlHeaders(candidate),
-        cacheResponseDirectives = parseCacheControl(cacheControlHeaders);
-    return getExpireTime(candidate, cacheResponseDirectives) < currentTime;
-}
-
-cp.clearExpired = function () {
-    var self = this;
-    self._requestInfoToResponses.forEach(function (candidates) {
-        candidates.forEach(function (response, requestInfoHash) {
-            var currentTime = new Date().getTime();
-            if (isExpired(response, currentTime)) {
-                if (self._debug) {
-                    self._log.debug("Evicted Response from cache for requestInfo Hash: " + requestInfoHash);
-                }
-                self._requestInfoToResponses.delete(requestInfoHash);
-            }
-        });
-    });
-};
-
-/**
- * Clear all requestInfos from revalidation.
- */
-cp.clearRevalidates = function () {
-    this._requestInfoRevalidating = new Dict();
-};
-
-/**
- * Check if a given requestInfo is currently revalidating.
- */
-cp.isRevalidating = function (requestInfo) {
-    return !!this._requestInfoRevalidating.get(requestInfo.hash);
-};
-
-/**
- * Add given requestInfo to revalidating.
- */
-cp.revalidate = function (requestInfo) {
-    var self = this,
-        revalidate = self._requestInfoRevalidating.get(requestInfo.hash) || 0;
-
-    // TODO special behavior ?
-    if (self._requestInfoRevalidating.get(requestInfo.hash)) {
-        if (self._debug) {
-            self._log.debug("Updated requestInfo for revalidating with hash: " + requestInfo.hash);
-        }
-    } else {
-        if (self._debug) {
-            self._log.debug("Added requestInfo to revalidate with hash: " + requestInfo.hash);
-        }
-    }
-    revalidate++;
-
-    self._requestInfoRevalidating.set(requestInfo.hash, revalidate);
-};
-
-/**
- * Clear given requestInfo from revalidation.
- */
-cp.validated = function (requestInfo) {
-    var self = this,
-        revalidate = self._requestInfoRevalidating.get(requestInfo.hash) || 0;
-
-    if (revalidate > 0) {
-
-        revalidate--;
-
-        if (self._debug) {
-            self._log.debug("Evicted requestInfo from revalidate with hash: " + requestInfo.hash);
-        }
-
-        if (revalidate > 0) {
-            self._requestInfoRevalidating.set(requestInfo.hash, revalidate);
-        } else {
-            self._requestInfoRevalidating.delete(requestInfo.hash);   
-        }
-    }
-};
-
-/**
- * Check requestInfo response for cache update, then update cache if cachable.
- */
-cp.put = function (requestInfo, response) {
-    var self = this;
-    return new Promise(function (resolve, reject) {
-        // Check requestInfo type
-        if (!(requestInfo instanceof RequestInfo)) {
-            reject(new TypeError("Invalid requestInfo argument"));
-        } else {
-
-            var cacheControlHeaders = getCacheControlHeaders(response),
-                cacheResponseDirectives = parseCacheControl(cacheControlHeaders);
-
-            if (isCacheableResponse(response, cacheResponseDirectives) === false) {
-                reject(new Error("Not Cacheable response"));
-            } else {
-
-                var candidates = self._requestInfoToResponses.get(requestInfo.hash) || new Dict(),
-                    responseHash = requestInfo.hash;
-
-                if (self._debug) {
-                    self._log.debug("Adding cache entry to:" + requestInfo.hash + '/' + responseHash);
-                }
-
-                candidates.set(responseHash, response);
-                self._requestInfoToResponses.set(requestInfo.hash, candidates);
-
-                resolve();
-            }
-        }
-    });
-};
-
-//////////////////////////////////////////// Exports ////////////////////////////////////////////
-module.exports = {
-    RequestInfo: RequestInfo,
-    Cache: Cache,
-    parseCacheControl: parseCacheControl,
-    satisfiesRequest: satisfiesRequest,
-    isCacheableResponse: isCacheableResponse,
-};
-
-},{"./logger":7,"collections/dict":63,"collections/map":72,"object-keys":100}],4:[function(require,module,exports){
-var websocket = require('websocket-stream'),
-    keys = require('object-keys'),
-    http2 = require('http2.js'),
-    util = require('util'),
-    EventEmitter = require('events').EventEmitter,
-    InvalidStateError = require('./errors.js').InvalidStateError,
-    RequestInfo = require('./cache.js').RequestInfo,
-    Cache = require('./cache.js').Cache,
-    Agent = require('./agent').Agent,
-    logger = require('./logger'),
-    parseUrl = require('./utils').parseUrl,
-    getOrigin = require('./utils.js').getOrigin,
-    mergeTypedArrays = require('./utils.js').mergeTypedArrays,
-    defaultPort = require('./utils.js').defaultPort,
-    CacheListener = require('./cache-listener').CacheListener;
-
-//////////////////////////////////////////// Configuration ////////////////////////////////////////////
-function Configuration(options) {
-    var self = this;
-    self.options = (options || {});
-
-    EventEmitter.call(this);
-    
-    self._activeConfigurationCnt = 0;
-    self._proxyMap = {};
-    self._activeTransportConnections = {};
-            
-    // Init debug/log
-    self.debug = self.options.debug;
-    self._log = logger.consoleLogger;
-
-    self.setDebugLevel(self.options.debugLevel || self.options.debug);
-
-    // Init Cache
-    self.cache = options.cache || new Cache({
-        debug: self.debug,
-        log: self._log
-    });
-    self.cacheListener = new CacheListener(self);
-
-    self.agent = new Agent({
-        log: self._log
-    });
-}
-
-util.inherits(Configuration, EventEmitter);
-
-var confProto = Configuration.prototype;
-
-confProto.setDebugLevel = function (level) {
-
-    level = typeof level === 'string' ? level : level === true ? 'info' : null;
-
-    // Init debug/log
-    if (this._log && this._log.hasOwnProperty('debugLevel')) {
-        this._log.debugLevel = level;
-    }
-};
-
-confProto.configuring = function () {
-    this._activeConfigurationCnt++;
-};
-
-confProto.configured = function () {
-    this._activeConfigurationCnt--;
-    if (this._activeConfigurationCnt === 0) {
-        this.emit('completed');
-    }
-};
-
-confProto.isConfiguring = function () {
-    return this._activeConfigurationCnt > 0;
-};
-
-confProto.getTransport = function (url) {
-
-    var self = this,
-        hasExistingTransport = self._activeTransportConnections.hasOwnProperty(url),
-        hasActiveTransport =  hasExistingTransport && !!self._activeTransportConnections[url].writable;
-    
-    if (
-        hasExistingTransport === false || 
-            hasActiveTransport === false
-    ) {
-
-        // Cleanup on first existing transtort re-connection attempt.
-        if (hasExistingTransport) {
-
-            if (this.debug) {
-                this._log.info("Re-Opening transport: " + url);
-            }
-
-            // Clear pending revalidates 
-            this.cache.clearRevalidates();
-
-        } else {
-            if (this.debug) {
-                this._log.info("Opening transport: " + url);
-            }            
-        }
-
-        var parsedUrl = parseUrl(url);
-        if(parsedUrl.protocol === 'ws:' || parsedUrl.protocol === 'wss:'){
-            // TODO, maybe enable perMessageDeflate in production or on debug??
-            this._activeTransportConnections[url] = websocket(url, "h2", {
-                perMessageDeflate: this.debug === false
-            });
-        } else if(parsedUrl.protocol === 'tcp:'){
-            this._activeTransportConnections[url] = require('net').connect({
-                'host' : parsedUrl.hostname,
-                'port' : parsedUrl.port
-            });
-        } else {
-            throw new Error('Unrecognized transport protocol: ' + parsedUrl.protocol + ', for transport: ' + url);
-        }
-    }
-
-    return this._activeTransportConnections[url];
-};
-
-confProto.addTransportUrl = function (url, transport) {
-    
-    url = parseUrl(url); // Enforce
-    this._proxyMap[url.href] = transport;
-
-    return this;
-};
-
-confProto.getTransportUrl = function (url) {
-
-    url = parseUrl(url); // Enforce
-
-    var proxyUrl = keys(this._proxyMap).reduce(function (result, value) {
-        // Check that transport url match beginning of url
-        return url.href.indexOf(value) === 0 ? value : result;
-    }, false);
-
-    return proxyUrl && this._proxyMap[proxyUrl];
-};
-
-confProto.onPush = function (pushRequest) {
-    var self = this,
-        cache = self.cache,
-        origin = getOrigin(pushRequest.scheme + "://" + pushRequest.headers.host);
-    
-    // Create href
-    pushRequest.href = origin + pushRequest.url;
-
-    if (self.debug) {
-        self._log.info("Received push promise for: " + pushRequest.href);
-    }
-
-    // TODO pass pushRequest for future dedup pending requestInfo
-    var requestInfo = new RequestInfo(pushRequest.method, pushRequest.href, pushRequest.headers);
-
-    cache.revalidate(requestInfo);
-
-    pushRequest.on('response', function (response) {
-
-        // TODO match or partial move to _sendViaHttp2 xhr.js to avoid maintain both
-        response.on('data', function (data) {
-            response.data = mergeTypedArrays(response.data, data);
-        });
-        
-        response.on('end', function () {
-            cache.put(requestInfo, response).then(function () {
-                self._log.debug("Cache updated via push for proxied XHR(" + pushRequest.href + ")");
-            }, function (cacheError) {
-                self._log.debug("Cache error via push for proxied XHR(" + pushRequest.href + "):" + cacheError.message);                            
-            }).then(function () {
-                // Clear requestInfo revalidate state
-                cache.validated(requestInfo);
-            });
-        });
-
-        response.on('error', function (e) {
-            self._log.warn("Server push stream error: " + e);
-
-            // Clear requestInfo revalidate state
-            cache.validated(requestInfo);
-        });
-    });
-};
-
-// open h2 pull channel
-confProto.openH2StreamForPush = function (pushUrl, proxyTransportUrl) {
-    
-    var self = this,
-        pushUri = parseUrl(pushUrl);
-
-    if (self.debug) {
-        self._log.info('Opening h2 channel for Push Promises: ' + pushUrl);
-    }
-
-    var openH2StreamForPush, reopenH2StreamForPush, // expression not function,
-        request,
-        reconnectFailures = [],
-        reconnectAutoDelay = self.options.reconnectAutoDelay || 100,
-        reconnectAuto = self.options.reconnectAuto || true,
-        reconnectTimer =  null,
-        opened = false,
-        reopening = false;
-
-    reopenH2StreamForPush = function reopenH2StreamForPush(err) {
-        opened = false;
-        self._log.info(pushUrl + " push channel closed.");
-
-        // Clear pending revalidates 
-        self.cache.clearRevalidates();
-
-        if (err) {
-            self._log.warn("Push channel stream error: " + err);
-            reconnectFailures.push(err);
-
-            if (reconnectAuto && !reopening) {
-                var reOpendelay = reconnectFailures.length * reconnectAutoDelay;
-                
-                self._log.info("Push channel stream will re-open in " + reOpendelay + "ms .");
-
-                clearTimeout(reconnectTimer);
-                reconnectTimer = setTimeout(
-                    openH2StreamForPush,
-                    reOpendelay
-                );
-
-            } else {
-                self._log.warn("Push channel stream already reopening.");
-            }
-        }
-    };
-
-    openH2StreamForPush = function () {
-
-        self._log.info("Push channel will open: " + pushUri.href);
-
-        if (opened) {
-            throw new Error("Server push stream already opened.");
-        }
-
-        reopening = true;
-        opened = true;
-
-        var transport = self.getTransport(proxyTransportUrl);
-
-        var request = http2.raw.request({
-            hostname: pushUri.hostname,
-            port: pushUri.port,
-            path: pushUri.path,
-            transportUrl: proxyTransportUrl,
-            transport: transport,
-            agent: self.agent
-        }, function (response) {
-            reopening = false;
-
-            self._log.debug("Push channel opened: " + pushUri.href);
-            
-            response.on('finish', function (err) {
-                // TODO finished 
-                reconnectFailures.length = 0;
-                reopenH2StreamForPush(err, pushUri);
-            });
-
-            response.on('error', function (err) {
-                reopenH2StreamForPush(err, pushUri);
-            });
-
-            response.on('open', function () {
-                opened = true;
-                reconnectFailures.length = 0;
-            });
-
-            transport.on('close', function (err) {
-                opened = false;
-                reconnectFailures.length = 0;
-                reopenH2StreamForPush(err, pushUri);
-            });
-        });
-
-        request.on('error', function (err) {
-            reopening = false;
-            reopenH2StreamForPush(err, pushUri);
-        });
-
-        // add to cache when receive pushRequest
-        request.on('push', function (pushRequest) {
-            self._log.debug("Push channel received: " + pushRequest);
-            self.onPush(pushRequest);
-        });
-
-        request.end();
-
-        return request;
-    };
-
-    request = openH2StreamForPush(pushUri);
-
-    return request;
-};
-
-// parse config json
-confProto.parseConfig = function (config) {
-    try {
-        config = typeof config === 'string' ? JSON.parse(config) : config;
-    } catch (JsonErr) {
-        throw new Error('Unable to parse config: ' + config);
-    }
-    return config;
-};
-
-// add config by json
-confProto.addConfig = function (config) {
-        
-    // Decode config
-    config = this.parseConfig(config);
-
-    // Legacy with warning
-    if (config.pushURL) {
-        this._log.warn('XMLHttpRequest Http2-Cache configuration "pushURL" is now "push"');
-        config.push = config.pushURL;
-        delete config.pushURL;
-    }
-
-    var proxyTransportUrl = config.transport;
-    var pushUrl = config.push;
-    this.setDebugLevel(this.clientLogLevel || config.clientLogLevel);
-
-    var cntI = config.proxy.length;
-    for(var i = 0; i < cntI; i++) {
-        this.addTransportUrl(config.proxy[i], proxyTransportUrl);
-    }
-
-    if (pushUrl) {
-        this.openH2StreamForPush(parseUrl(defaultPort(pushUrl)), proxyTransportUrl);
-    }
-};
-
-// add config by url
-confProto.fetchConfig = function (url) {
-    var xhr = new XMLHttpRequest();
-    // TODO, consider using semi-public API??
-    xhr._open('GET', url);
-    this.configuring();
-    var self = this;
-    xhr.addEventListener("load", function () {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-            var status = xhr.status;
-            if (status !== 200) {
-                throw new InvalidStateError('Failed to load configuration ' + url + ', status code: ' + status);
-            }
-            self.addConfig(xhr.response);
-            self.configured();
-        }
-    }, true);
-    // TODO, consider using semi-public API??
-    xhr._send();
-};
-
-// add configs by an array of urls
-confProto.configure = function (urls) {
-    if (urls instanceof Array) {
-        var cntI = urls.length;
-        for (var i = 0; i < cntI; i++) {
-            if (typeof urls[i] === 'string') {
-                this.fetchConfig(urls[i]);
-            } else if (typeof urls[i] === 'object') {
-                this.configuring();
-                this.addConfig(urls[i]);
-                this.configured();
-            } else {
-                throw new SyntaxError('Invalid arg: ' + urls);
-            }
-        }
-    } else {
-        throw new SyntaxError('Invalid arg: ' + urls);
-    }
-};
-
-module.exports = Configuration;
-
-},{"./agent":1,"./cache-listener":2,"./cache.js":3,"./errors.js":5,"./logger":7,"./utils":8,"./utils.js":8,"events":17,"http2.js":82,"net":11,"object-keys":100,"util":56,"websocket-stream":141}],5:[function(require,module,exports){
-function InvalidStateError(message) {
-    this.name = 'InvalidStateError';
-    this.message = message;
-    this.stack = (new Error()).stack;
-}
-
-function TypeError(message) {
-    this.name = 'TypeError';
-    this.message = message;
-    this.stack = (new Error()).stack;
-}
-
-function DOMException(message) {    
-	this.name = 'DOMException';
-    this.message = message;
-    this.stack = (new Error()).stack;
-}
-
-module.exports = {
-	DOMException: DOMException,
-    InvalidStateError: InvalidStateError,
-    TypeError: TypeError
-};
-},{}],6:[function(require,module,exports){
-/* global XMLHttpRequest */
-(function (root) {
-
-	if (typeof XMLHttpRequest === 'undefined') {
-		throw new Error('XMLHttpRequest is not supported.');
-	}
-
-	if (typeof XMLHttpRequest.configuration === 'undefined') {
-
-	    var Configuration = require('./configuration.js'),
-	        enableXHROverH2 = require('./xhr.js').enableXHROverH2;
-
-	    enableXHROverH2(XMLHttpRequest, new Configuration({
-	    	debug: false // true='info' or (info|debug|trace)
-	    }));
-
-	    // To update debug level after injection:
-	    //- XMLHttpRequest.configuration.setDebugLevel('info');
-	    //- XMLHttpRequest.configuration.setDebugLevel('debug');
-	    //- XMLHttpRequest.configuration.setDebugLevel('trace');
-	}
-
-}(this));
-
-},{"./configuration.js":4,"./xhr.js":10}],7:[function(require,module,exports){
-/* global console */
-
-// Logger shim, used when no logger is provided by the user.
-function noop() {}
-var defaultLogger = {
-  fatal: noop,
-  error: noop,
-  warn : noop,
-  info : noop,
-  debug: noop,
-  trace: noop,
-  child: function() { return this; }
-};
-
-var consoleLogger = {
-  debugLevel: 'info', // 'info|debug|trace'
-  fatal: console.error,
-  error: console.error,
-  warn : console.warning || console.info,
-  info : function (data, ctx) {
-    var debug = console.debug || console.info;
-    if (
-      consoleLogger.debugLevel === 'info' || 
-        consoleLogger.debugLevel === 'trace' || 
-          consoleLogger.debugLevel === 'debug'
-    ) {
-      var args = (typeof ctx === 'string' ? [ctx, data] : arguments);
-      debug.apply(console, args);
-    } 
-  },
-  debug: function (data, ctx) {
-    var debug = console.debug || console.info;
-    if (
-      consoleLogger.debugLevel === 'trace' || 
-        consoleLogger.debugLevel === 'debug'
-    ) {
-      var args = (typeof ctx === 'string' ? [ctx, data] : arguments);
-      debug.apply(console, args);
-    } 
-  },
-  // Trace only
-  trace: function (data, ctx) {
-    var debug = console.debug || console.info;
-    if (consoleLogger.debugLevel === 'trace') {
-      consoleLogger.debug(data, ctx);
-    } 
-  },
-  // Trace only
-  child: function(msg) {
-    if (consoleLogger.debugLevel === 'trace') {
-      console.info(msg);
-    } 
-  	return this; 
-  }
-};
-
-module.exports = {
-	consoleLogger: consoleLogger,
-	defaultLogger: defaultLogger
-};
-},{}],8:[function(require,module,exports){
-var url = require('url'),
-    InvalidStateError = require('./errors').InvalidStateError;
-
-
-var resolvePort = function (u) {
-    u = (u instanceof url.constructor) ? u : url.parse(u);
-    var port = u.port;
-    if (port === null) {
-        if (u.protocol === "ws:" || u.protocol === "http:") {
-            port = 80;
-        } else {
-            port = 443;
-        }
-    }
-    return port;
-};
-/* global console */
-var parseUrl = function (href) {
-    var uri = (href instanceof url.constructor) ? href : url.parse(href);
-    uri.port = resolvePort(uri);
-
-
-    if (
-        uri.hostname === null &&
-            typeof window !== 'undefined'
-    ) {
-        uri.protocol = window.location.protocol;
-        uri.hostname = window.location.hostname;
-        uri.port = window.location.port;
-        uri.host = uri.hostname + ':' + uri.port;
-        uri.href = uri.protocol + "//" + uri.host + uri.href;
-    }
-
-    // Define uri.origin
-    uri.origin = uri.hostname + ":" + uri.port;
- 
-    // Check if host match origin (example.com vs example.com:80)
-    if (uri.host !== uri.origin) {
-        // Fix href to include default port
-        uri.href = uri.href.replace(uri.protocol + "//" + uri.host, uri.protocol + "//" + uri.origin);
-        // Fix host to include default port
-        uri.host = uri.hostname + ":" + uri.port;
-    }
-
-    return uri;
-};
-
-var redefine = function (obj, prop, value) {
-
-    if (obj[prop]) {
-        // TODO, consider erasing scope/hiding (enumerable: false)
-        obj["_" + prop] = obj[prop];
-    }
-
-    Object.defineProperty(obj, prop, {
-        value: value,
-        enumerable: obj.propertyIsEnumerable(prop),
-        configurable: true
-    });
-};
-
-var defineGetter = function (obj, prop, getter) {
-
-    if (obj[prop]) {
-        // TODO, consider erasing scope/hiding (enumerable: false)
-        obj["_" + prop] = obj[prop];
-    }
-
-    Object.defineProperty(obj, prop, {
-        enumerable: true,
-        configurable: true,
-        get: getter
-    });
-};
-
-var definePrivate = function (obj, prop, value) {
-    Object.defineProperty(obj, prop, {
-        value: value,
-        enumerable: false,
-        configurable: true
-    });
-};
-
-var definePublic = function (obj, prop, value) {
-    Object.defineProperty(obj, prop, {
-        value: value,
-        enumerable: true,
-        configurable: true
-    });
-};
-
-var getOrigin = function (u) {
-    u = (u instanceof url.constructor) ? u : parseUrl(u);
-    return u.protocol + '//' + u.hostname + ':' + resolvePort(u);
-};
-
-var defaultPort = function (u, port) {
-    var parse = (u instanceof url.constructor) ? u : parseUrl(u);
-    if (!port) {
-        port = resolvePort(u);
-    }
-    u = (u instanceof url.constructor) ? u : parseUrl(u);
-    return u.protocol + '//' + u.hostname + ':' + port + parse.path;
-};
-
-var Utf8ArrayToStr = function (array) {
-    var c, char2, char3, char4,
-        out = "",
-        len = array.length,
-        i = 0;
-        
-    while (i < len) {
-        c = array[i++];
-        switch (c >> 4) {
-            case 0:
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-            case 5:
-            case 6:
-            case 7:
-                // 0xxxxxxx
-                out += String.fromCharCode(c);
-                break;
-            case 12:
-            case 13:
-                // 110x xxxx   10xx xxxx
-                char2 = array[i++];
-                out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
-                break;
-            case 14:
-                // 1110 xxxx  10xx xxxx  10xx xxxx
-                char2 = array[i++];
-                char3 = array[i++];
-                out += String.fromCharCode(((c & 0x0F) << 12) |
-                    ((char2 & 0x3F) << 6) |
-                    ((char3 & 0x3F) << 0));
-                break;
-            case 15:
-            // 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
-            char2 = array[i++];
-            char3 = array[i++];
-            char4 = array[i++];
-            out += String.fromCodePoint(((c & 0x07) << 18) | ((char2 & 0x3F) << 12) | ((char3 & 0x3F) << 6) | (char4 & 0x3F));
-                break;
-        }
-    }
-
-    return out;
-};
-
-
-var mergeTypedArrays = function (a, b) {
-    // Checks for truthy values on both arrays
-    if(!a && !b) {
-        throw 'Please specify valid arguments for parameters a and b.';  
-    }
-
-    // Checks for truthy values or empty arrays on each argument
-    // to avoid the unnecessary construction of a new array and
-    // the type comparison
-    if(!b || b.length === 0) {
-        return a;
-    }
-
-    if(!a || a.length === 0) {
-        return b;
-    }
-
-    // Make sure that both typed arrays are of the same type
-    if(Object.prototype.toString.call(a) !== Object.prototype.toString.call(b)) {
-        throw 'The types of the two arguments passed for parameters a and b do not match.';
-    }
-
-    var c = new a.constructor(a.length + b.length);
-
-    // On NodeJS < v4 TypeArray.set is not working as expected, 
-    // starting NodeJS 6+ TypeArray.set.length is 1 and works properly.
-    if (c.set.length > 0) {
-        c.set(a, 0);
-        c.set(b, a.length);
-    // TypedArray.set relly on deprecated Buffer.set on NodeJS < 6 and producing bad merge
-    // Using forEach and Native Setter instead  
-    } else {
-        a.forEach(function (byte, index) { c[index] = byte; });
-        b.forEach(function (byte, index) { c[a.length + index] = byte; });
-    }
-    
-    return c;
-};
-
-var toArrayBuffer = function (buf) {
-    var ab = new ArrayBuffer(buf.length),
-        view = new Uint8Array(ab);
-
-    for (var i = 0; i < buf.length; ++i) {
-        view[i] = buf[i];
-    }
-
-    return ab;
-};
-
-var dataToType = function (data, type) {
-    // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/responseType
-    switch (type) {
-        case "":
-        case "text":
-            if (data instanceof Uint8Array) {
-                return Utf8ArrayToStr(data);
-            }
-            return data;
-        case "json":
-            return JSON.parse(data);
-        case "arraybuffer":
-            return toArrayBuffer(data);
-        case "blob":
-            if (typeof Blob !== 'undefined') {
-                return new Blob(data);
-            } else {
-                throw new InvalidStateError("Unsupported Response Type: " + type);
-            }
-            break;
-        case "document":
-            if (
-                typeof document !== 'undefined' &&
-                    typeof document.implementation !== 'undefined' &&
-                        typeof document.implementation.createDocument === 'function'
-            ) {
-                return document.implementation.createDocument('http://www.w3.org/1999/xhtml', 'html', data);
-            } else {
-                throw new InvalidStateError("Unsupported Response Type: " + type);
-            }
-            break;
-        default:
-            throw new InvalidStateError("Unexpected Response Type: " + type);
-    }
-};
-
-var caseInsensitiveEquals = function (str1, str2) {
-    return str1.toUpperCase() === str2.toUpperCase();
-};
-
-var serializeXhrBody = function (xhrInfo, body) {
-
-    // TODO implement better FormData serialization for websocket
-    // see: https://github.com/form-data/form-data
-
-    if (
-        typeof body === 'object' &&
-            typeof body.entries === 'function'
-    ) {
-        
-        // Display the key/value pairs
-        var bodyParts = [],
-            pairEntry, partPair,
-            iterator = body.entries();
-
-        while (
-            (pairEntry = iterator.next()) &&
-                pairEntry.done === false
-        ) {
-            partPair = pairEntry.value;
-
-            if (typeof partPair[1] !== "string") {
-                throw new Error("FormData limited support, only string supported");
-            }
-
-            bodyParts.push(encodeURIComponent(partPair[0]) + '=' + encodeURIComponent(partPair[1]));
-        }
-
-        body = bodyParts.join('&');
-        
-        // TODO may have to set xhrInfo content-type
-        //xhrInfo.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    }
-
-    return body;
-};
-
-module.exports = {
-    parseUrl: parseUrl,
-    redefine: redefine,
-    defineGetter: defineGetter,
-    definePrivate: definePrivate,
-    definePublic: definePublic,
-    resolvePort: resolvePort,
-    getOrigin: getOrigin,
-    dataToType: dataToType,
-    defaultPort: defaultPort,
-    serializeXhrBody: serializeXhrBody,
-    caseInsensitiveEquals: caseInsensitiveEquals,
-    mergeTypedArrays: mergeTypedArrays,
-    Utf8ArrayToStr: Utf8ArrayToStr
-};
-
-
-
-},{"./errors":5,"url":52}],9:[function(require,module,exports){
-/**
- * Weak hashmap from instance to properties, so internal properties aren't exposed
- */
-var WeakMap = require("collections/weak-map");
-
-var XhrInfo = function () {
-    this.storage = new WeakMap();
-};
-
-XhrInfo.prototype.get = function (k, p, d) {
-    if (!this.storage.has(k)) {
-        return null;
-    } else {
-        return this.storage.get(k, d)[p];
-    }
-};
-
-XhrInfo.prototype.put = function (k, p, v) {
-    if (!this.storage.has(k)) {
-        // lazy init
-        this.storage.set(k, {});
-    }
-
-    this.storage.get(k)[p] = v;
-    return v;
-};
-
-XhrInfo.prototype.clean = function (k) {
-    this.storage.delete(k);
-};
-
-module.exports = XhrInfo;
-},{"collections/weak-map":80}],10:[function(require,module,exports){
-var http2 = require('http2.js'),
-    keys = require('object-keys'),
-    redefine = require('./utils').redefine,
-    defineGetter = require('./utils').defineGetter,
-    definePublic = require('./utils').definePublic,
-    definePrivate = require('./utils').definePrivate,
-    dataToType = require('./utils').dataToType,
-    defaultPort = require('./utils').defaultPort,
-    RequestInfo = require('./cache.js').RequestInfo,
-    parseUrl = require('./utils').parseUrl,
-    serializeXhrBody = require('./utils').serializeXhrBody,
-    getOrigin = require('./utils').getOrigin,
-    mergeTypedArrays = require('./utils').mergeTypedArrays,
-    InvalidStateError = require('./errors.js').InvalidStateError,
-    DOMException = require('./errors.js').DOMException,
-    XhrInfo = require('./xhr-info.js'),
-    Map = require("collections/map");
-
-var HTTP2_FORBIDDEN_HEADERS = ['accept-charset',
-    'accept-encoding',
-    'access-control-request-headers',
-    'access-control-request-method',
-    'connection',
-    'content-length',
-    'cookie',
-    'cookie2',
-    'date',
-    'dnt',
-    'expect',
-    'host',
-    'keep-alive',
-    'origin',
-    'referer',
-    'te',
-    'trailer',
-    'transfer-encoding',
-    'upgrade',
-    'via'];
-
-var HTTP_METHODS = [
-    'GET',
-    'OPTIONS',
-    'HEAD',
-    'POST',
-    'PUT',
-    'DELETE',
-    'TRACE',
-    'CONNECT'
-];
-
-// ProgressEvent
-function ProgressEvent(type) {
-    this.type = type;
-    this.target = null;
-}
-
-ProgressEvent.prototype.bubbles = false;
-
-ProgressEvent.prototype.cancelable = false;
-
-ProgressEvent.prototype.target = null;
-
-function enableXHROverH2(XMLHttpRequest, configuration) {
-
-    var xhrProto = XMLHttpRequest.prototype;
-    var xhrInfo = new XhrInfo();
-
-    definePublic(XMLHttpRequest, 'configuration', configuration);
-    definePublic(XMLHttpRequest, 'proxy', function (configs) {
-        return configuration.configure(configs);
-    });
-
-    function redefineProtoInfo(xhrProto, xhrInfo, property, initalValue) {
-        var originalProperty = "_" + property;
-        Object.defineProperty(xhrProto, originalProperty, Object.getOwnPropertyDescriptor(xhrProto, property));
-
-        Object.defineProperty(xhrProto, property, {
-            get: function () {
-                return xhrInfo.get(this, property) || this[originalProperty] || initalValue;
-            },
-            set: function (value) {
-                xhrInfo.put(this, property, value);
-            }
-        });
-    }
-
-    redefineProtoInfo(xhrProto, xhrInfo, "responseType", '');
-    redefineProtoInfo(xhrProto, xhrInfo, "readyState", 0);
-    redefineProtoInfo(xhrProto, xhrInfo, "timeout");
-    
-    redefine(xhrProto, 'open', function (method, url, async, username, password) {
-        // https://xhr.spec.whatwg.org/#the-open%28%29-method
-        method = method.toUpperCase();
-        if (HTTP_METHODS.indexOf(method.toUpperCase()) < 0) {
-            throw new SyntaxError("Invalid method: " + method);
-        }
-        // parse so we know it is valid
-        var parseurl = parseUrl(url);
-
-        if (async === undefined) {
-            async = true;
-        } else if (async === false) {
-            throw new SyntaxError("Synchronous is not supported");
-        }
-
-        xhrInfo.put(this, 'method', method);
-        xhrInfo.put(this, 'url', url);
-        xhrInfo.put(this, 'async', async);
-        xhrInfo.put(this, 'headers', new Map());
-
-        if (parseurl.host && username && password) {
-            xhrInfo.put(this, 'username', username);
-            xhrInfo.put(this, 'password', password);
-        }
-
-        var self = this;
-
-        /*
-         * We need to fire opened event here but native library might
-         * recall open, so we do this
-         */
-        if (self.onreadystatechange) {
-            var orscDelegate = self.onreadystatechange;
-            self.onreadystatechange = function () {
-                if (xhrInfo.get(this, 'lastreadystate') !== 1 || self.readyState !== 1) {
-                    xhrInfo.put(this, 'lastreadystate', self.readyState);
-                    orscDelegate();
-                }
-            };
-        }
-
-        // Reset ready state
-        xhrInfo.put(this, 'lastreadystate', XMLHttpRequest.OPENED);
-
-        this._changeState(XMLHttpRequest.OPENED);
-    });
-
-    redefine(xhrProto, 'setRequestHeader', function (name, value) {
-        if (this.readyState > 2) {
-            throw new InvalidStateError("Can not setRequestHeader on unopened XHR");
-        }
-        var lcname = name.toLowerCase();
-        if (HTTP2_FORBIDDEN_HEADERS.indexOf(lcname) > 0 || (lcname.lastIndexOf('sec-', 0) === 0 && lcname.replace('sec-', '').indexOf(lcname) > 0) || (lcname.lastIndexOf('proxy-', 0) === 0 && lcname.replace('proxy-', '').indexOf(lcname) > 0)) {
-            throw new SyntaxError("Forbidden Header: " + name);
-        }
-        // Each header field consists of a name followed by a colon (":") and the field value. Field names are
-        // case-insensitive.
-        // We standardize to lowercase for ease
-        xhrInfo.get(this, 'headers').set(lcname, value);
-    });
-
-    definePrivate(xhrProto, '_changeState', function (state, options) {
-        var self = this;
-
-        switch (state) {
-            case XMLHttpRequest.UNSENT:
-                break;
-            case XMLHttpRequest.OPENED:
-                break;
-            case XMLHttpRequest.HEADERS_RECEIVED:
-                var statusCode = options.response.statusCode;
-                defineGetter(this, 'status', function () {
-                    return statusCode;
-                });
-                var statusMessage = http2.STATUS_CODES[statusCode];
-                if (statusMessage) {
-                    this.statusText = statusMessage;
-                } else {
-                    configuration._log.warn('Unknown STATUS CODE: ' + statusCode);
-                }
-                break;
-            case XMLHttpRequest.LOADING:
-                this.__dispatchEvent(new ProgressEvent('progress'));
-                break;
-            case XMLHttpRequest.DONE:
-                redefine(this, 'getResponseHeader', function(header) {
-                    return options.response.headers[header.toLowerCase()];
-                });
-                redefine(this, 'getAllResponseHeaders', function() {
-                    var responseHeaders = options.response.headers;
-                    return keys(responseHeaders).filter(function (responseHeader) {
-                        return responseHeader !== 'toString';
-                    }).map(function (responseHeader) {
-                        return responseHeader + ': ' + responseHeaders[responseHeader];
-                    }).join("\n");
-                });
-                this.__dispatchEvent(new ProgressEvent('load'));
-                this.__dispatchEvent(new ProgressEvent('loadend'));
-                break;
-            default:
-                throw new InvalidStateError("Unexpected XHR _changeState: " + state);
-        }
-
-        switch (state) {
-            case XMLHttpRequest.UNSENT:
-            case XMLHttpRequest.OPENED:
-                break;
-            default:
-            this.readyState = state;
-            if (this.readyState !== state) {
-                throw new Error('Unable to update readyState ' +  this.readyState + ' vs ' + state);
-            }
-        }
-        this.__dispatchEvent(new ProgressEvent('readystatechange'));
-    });
-
-    // Expose response and responseText with cached dataToType
-    function defineXhrResponse(xhr, response) {
-
-        xhr._response = xhr._response || xhr.response;
-
-        defineGetter(xhr, 'response', function () {
-            // Render as responseType
-            var responseType = xhrInfo.get(xhr, 'responseType');
-            return dataToType(response.data, xhrInfo.get(xhr, 'responseType') || '');
-        });
-        
-        defineGetter(xhr, 'responseText', function () {
-
-            var responseType = xhrInfo.get(xhr, 'responseType') || '';
-            if (responseType !== '' && responseType !== 'text') {
-                throw new DOMException("Failed to read the 'responseText' property from 'XMLHttpRequest': The value is only accessible if the object's 'responseType' is '' or 'text' (was '" + responseType + "')");
-            }
-
-            // Force text rendering
-            return dataToType(response.data, 'text');
-        });
-    }
-
-    definePrivate(xhrProto, '_sendViaHttp2', function (destination, body, proxyTransportUrl) {
-
-        var self = this,
-            cache = configuration.cache,
-            requestUrl = getOrigin(destination.href) + destination.path,
-            requestMethod = xhrInfo.get(self, 'method'),
-            requestHeaders = xhrInfo.get(self, 'headers'),
-            requestInfo = new RequestInfo(requestMethod, requestUrl, requestHeaders);
-        
-        // TODO reset response
-        // TODO change getCache to readonly property
-        
-        cache.match(requestInfo).then(function (response) {
-            if (response) {
-
-                if (configuration.debug) {
-                    configuration._log.debug("Using cache result for XHR(" + destination.href + ")");
-                }
-
-                // Export cached response
-                defineXhrResponse(self, response);
-
-                self.__dispatchEvent(new ProgressEvent('loadstart'));
-                self._changeState(XMLHttpRequest.HEADERS_RECEIVED, {'response': response});
-                self._changeState(XMLHttpRequest.LOADING, {'response': response});
-                self._changeState(XMLHttpRequest.DONE, {'response': response});
-
-            } else {
-
-                // Need to make the request your self
-                if (body) {
-
-                    // https://xhr.spec.whatwg.org/#the-send%28%29-method
-                    if (
-                        typeof HTMLElement !== 'undefined' &&
-                            body instanceof HTMLElement
-                    ) {
-                        if (!requestHeaders.has('content-encoding')) {
-                            requestHeaders.set('content-encoding', 'UTF-8');
-                        }
-
-                        if (!requestHeaders.has('content-type')) {
-                            requestHeaders.set('content-type', 'text/html; charset=utf-8');
-                        }
-                    } else {
-                        // Set default encoding
-                        // TODO use document encoding
-                        if (!requestHeaders.has('content-encoding')) {
-                            requestHeaders.set('content-encoding', 'UTF-8');
-                        }
-                    }
-
-                    // only other option in spec is a String
-                    // inject content-length TODO remove this as should not be required
-                    requestHeaders.set('content-length', body.toString().length);
-                }
-
-                // TODO use isRevalidating and store request in cache.revalidate 
-                // cache.isRevalidating(requestInfo)
-
-                // Naive Timeout implementation
-                var timeout = xhrInfo.get(self, 'timeout'),
-                    timeoutTimer = xhrInfo.get(self, 'timeoutTimer');
-
-                if (timeout) {
-                    var otoDelegate = self.ontimeout;
-                    self.ontimeout = function () {
-
-                        // Clear requestInfo revalidate state
-                        cache.validated(requestInfo);
-
-                        // TODO abort
-                        xhrInfo.put(self, 'timeoutOccured', true);
-                        otoDelegate();
-                    };
-
-                    clearTimeout(timeoutTimer);
-                    xhrInfo.put(self, 'timeoutOccured', false);
-
-                    timeoutTimer = setTimeout(self.ontimeout, timeout);
-                    xhrInfo.put(self, 'timeoutTimer', timeoutTimer);
-                }
-
-                var transport = configuration.getTransport(proxyTransportUrl);
-
-                var request = http2.raw.request({
-                    agent: configuration.agent,
-                    // protocol has already been matched by getting transport url
-                    // protocol: destination.protocol,
-                    hostname: destination.hostname,
-                    port: destination.port,
-                    path: destination.path,
-                    method: requestMethod,
-                    headers: requestHeaders.toObject(),
-                    // auth: self.__headers // TODO AUTH
-                    // TODO, change transport to createConnection
-                    transport: transport,
-                    transportUrl: proxyTransportUrl
-                    // TODO timeout if syncronization set
-                    // timeout: self.__timeout
-                }, function (response) {
-
-                    var timeoutOccured = xhrInfo.get(self, 'timeoutOccured'),
-                        timeoutTimer = xhrInfo.get(self, 'timeoutTimer');
-
-                    // Naive Timeout implementation
-                    if (timeoutOccured) {
-                        return;
-                    }
-                    
-                    clearTimeout(timeoutTimer);
-
-                    // Export live response
-                    defineXhrResponse(self, response);
-
-                    self._changeState(XMLHttpRequest.HEADERS_RECEIVED, {'response': response});
-
-                    response.on('data', function (data) {
-                        response.data = mergeTypedArrays(response.data, data);
-                        self._changeState(XMLHttpRequest.LOADING, {'response': response});
-                    });
-
-                    response.on('finish', function () {
-
-                        if (configuration.debug) {
-                            configuration._log.debug("Got response for proxied XHR(" + destination.href + ")");
-                        }
-
-                        cache.put(requestInfo, response).then(function () {
-                            configuration._log.debug("Cache updated for proxied XHR(" + destination.href + ")");
-                        }).catch(function (cacheError) {
-                            configuration._log.debug("Cache error for proxied XHR(" + destination.href + "):" + cacheError.message);                            
-                        }).then(function () {
-                            self._changeState(XMLHttpRequest.DONE, {
-                                'response': response
-                            });
-
-                            // Clear requestInfo revalidate state
-                            cache.validated(requestInfo);  
-                        });
-                    });
-                });
-
-                // TODO Why ?
-                request.on('error', function (/*e*/) {
-
-                    // Clear requestInfo revalidate state
-                    cache.validated(requestInfo);
-
-                    // TODO, handle error
-                    //self._changeState('error');
-
-                    self.__dispatchEvent(new ProgressEvent('error'));
-                });
-
-                // add to cache when receive pushRequest
-                request.on('push', function(respo) {
-                    configuration.onPush(respo);
-                });
-                
-                request.end(body || null);
-
-                // Set requestInfo revalidate state
-                // TODO pass request for future dedup pending requestInfo
-                cache.revalidate(requestInfo);
-
-                self.__dispatchEvent(new ProgressEvent('loadstart'));
-            }
-        });
-    });
-
-    redefine(xhrProto, 'send', function (body) {
-        
-        var self = this,
-            url = xhrInfo.get(self, 'url');
-
-        if (configuration.isConfiguring()) {
-
-            if (configuration.debug) {
-                configuration._log.debug("Delaying XHR(" + url + ") until configuration completes");
-            }
-
-            configuration.once('completed', function () {
-                self.send(body);
-            });
-
-        } else {
-
-            var destination = parseUrl(url),
-                proxyTransportUrl = configuration.getTransportUrl(destination);
-
-            if (proxyTransportUrl) {
-
-                if (configuration.debug) {
-                    configuration._log.debug("Proxying XHR(" + url + ") via " + proxyTransportUrl);
-                }
-
-                // Fix support for FormData if not null and object
-                if (body && typeof body === "object") {
-                    body = serializeXhrBody(xhrInfo, body);   
-                }
-                
-                self._sendViaHttp2(destination, body, proxyTransportUrl);
-
-            } else {
-
-                if (configuration.debug) {
-                    configuration._log.debug("Sending XHR(" + url + ") via native stack");
-                }
-
-                self._open(xhrInfo.get(self, 'method'),
-                    url,
-                    xhrInfo.get(self, 'async'),
-                    xhrInfo.get(self, 'username'),
-                    xhrInfo.get(self, 'password')
-                );
-
-                // Restore responseType
-                self._responseType = xhrInfo.get(self, 'responseType') || '';
-
-                // Reset Headers
-                var requestHeaders = xhrInfo.get(self, 'headers');
-                requestHeaders.forEach(function (value, key) {  
-                    self._setRequestHeader(key, value);                  
-                }, self);           
-
-                // Fix support for http2.js only if FormData is not defined and not null
-                if (body && typeof FormData === "undefined") {
-                    body = serializeXhrBody(xhrInfo, body);   
-                }
-
-                self._send(body);
-            }
-        }
-    });
-
-    redefine(xhrProto, 'addEventListener', function (eventType, listener) {
-        if (!this.__listeners) {
-            this.__listeners = {};
-            this.__listenedToEvents = new Set();
-        }
-        eventType = eventType.toLowerCase();
-        if (!this.__listeners[eventType]) {
-            this.__listeners[eventType] = [];
-        }
-        this.__listeners[eventType].push(listener);
-        this.__listenedToEvents.add(eventType);
-        // TODO try catch addEventListener?? for browsers that don't support it
-        this._addEventListener(eventType, listener);
-        return void 0;
-    });
-
-    redefine(xhrProto, 'removeEventListener', function (eventType, listener) {
-        var index;
-        eventType = eventType.toLowerCase();
-        if (this.__listeners[eventType]) {
-            index = this.__listeners[eventType].indexOf(listener);
-            if (index !== -1) {
-                this.__listeners[eventType].splice(index, 1);
-            }
-        }
-        // TODO try catch _removeEventListener?? for browsers that don't support it
-        this._removeEventListener(eventType, listener);
-        return void 0;
-    });
-
-    definePrivate(xhrProto, '__dispatchEvent', function (event) {
-        var eventType, j, len, listener, listeners;
-        event.currentTarget = event.target = this;
-        eventType = event.type;
-        if (this.__listeners) {
-            if ((listeners = this.__listeners[eventType])) {
-                for (j = 0, len = listeners.length; j < len; j++) {
-                    listener = listeners[j];
-                    listener.call(this, event);
-                }
-            }
-        }
-        if ((listener = this["on" + eventType])) {
-            listener.call(this, event);
-        }
-        return void 0;
-
-    });
-
-    /*
-     * Maybe in the future this will be made public, but it is needed for testing now
-     * TODO Work in Progress (Design needed)
-     */
-    definePrivate(xhrProto, 'subscribe', function (cb) {
-        // assert this._state ===  XMLHttpRequest.OPENED
-        var url = defaultPort(xhrInfo.get(this, 'url'));
-        // once? or do we have API for unsubscribe?
-        // https://nodejs.org/api/events.html#events_emitter_removelistener_eventname_listener
-        var subscription = function (requestUrl) {
-            // TODO should we go through xhr lifecycle again ??
-            if (requestUrl === url) {
-                cb();
-            }
-        };
-        configuration.cacheListener.on('cached', subscription);
-
-        // TODO: Will only works once, not with multiple subscription
-        definePrivate(xhrProto, 'unsubscribe', function () {
-            configuration.cacheListener.removeListener('cached', subscription);
-        });
-    });
-}
-
-module.exports = {
-    enableXHROverH2: enableXHROverH2
-};
-
-},{"./cache.js":3,"./errors.js":5,"./utils":8,"./xhr-info.js":9,"collections/map":72,"http2.js":82,"object-keys":100}],11:[function(require,module,exports){
-
-},{}],12:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -2273,9 +494,9 @@ var objectKeys = Object.keys || function (obj) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"util/":56}],13:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],14:[function(require,module,exports){
+},{"util/":47}],3:[function(require,module,exports){
+arguments[4][1][0].apply(exports,arguments)
+},{"dup":1}],4:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -3991,7 +2212,7 @@ function numberIsNaN (obj) {
   return obj !== obj // eslint-disable-line no-self-compare
 }
 
-},{"base64-js":15,"ieee754":16}],15:[function(require,module,exports){
+},{"base64-js":5,"ieee754":6}],5:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -4107,7 +2328,7 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],16:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -4193,7 +2414,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],17:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4497,23 +2718,40 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],18:[function(require,module,exports){
-var http = require('http');
+},{}],8:[function(require,module,exports){
+var http = require('http')
+var url = require('url')
 
-var https = module.exports;
+var https = module.exports
 
 for (var key in http) {
-    if (http.hasOwnProperty(key)) https[key] = http[key];
-};
-
-https.request = function (params, cb) {
-    if (!params) params = {};
-    params.scheme = 'https';
-    params.protocol = 'https:';
-    return http.request.call(this, params, cb);
+  if (http.hasOwnProperty(key)) https[key] = http[key]
 }
 
-},{"http":46}],19:[function(require,module,exports){
+https.request = function (params, cb) {
+  params = validateParams(params)
+  return http.request.call(this, params, cb)
+}
+
+https.get = function (params, cb) {
+  params = validateParams(params)
+  return http.get.call(this, params, cb)
+}
+
+function validateParams (params) {
+  if (typeof params === 'string') {
+    params = url.parse(params)
+  }
+  if (!params.protocol) {
+    params.protocol = 'https:'
+  }
+  if (params.protocol !== 'https:') {
+    throw new Error('Protocol "' + params.protocol + '" not supported. Expected "https:"')
+  }
+  return params
+}
+
+},{"http":35,"url":43}],9:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -4538,7 +2776,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],20:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -4561,7 +2799,7 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],21:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -4747,7 +2985,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],22:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/punycode v1.4.1 by @mathias */
 ;(function(root) {
@@ -5284,7 +3522,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],23:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5370,7 +3608,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],24:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5457,16 +3695,16 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],25:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":23,"./encode":24}],26:[function(require,module,exports){
+},{"./decode":13,"./encode":14}],16:[function(require,module,exports){
 module.exports = require('./lib/_stream_duplex.js');
 
-},{"./lib/_stream_duplex.js":27}],27:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":17}],17:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5591,7 +3829,7 @@ function forEach(xs, f) {
     f(xs[i], i);
   }
 }
-},{"./_stream_readable":29,"./_stream_writable":31,"core-util-is":35,"inherits":19,"process-nextick-args":37}],28:[function(require,module,exports){
+},{"./_stream_readable":19,"./_stream_writable":21,"core-util-is":25,"inherits":9,"process-nextick-args":27}],18:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -5639,7 +3877,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":30,"core-util-is":35,"inherits":19}],29:[function(require,module,exports){
+},{"./_stream_transform":20,"core-util-is":25,"inherits":9}],19:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6649,7 +4887,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":27,"./internal/streams/BufferList":32,"./internal/streams/destroy":33,"./internal/streams/stream":34,"_process":21,"core-util-is":35,"events":17,"inherits":19,"isarray":36,"process-nextick-args":37,"safe-buffer":38,"string_decoder/":39,"util":13}],30:[function(require,module,exports){
+},{"./_stream_duplex":17,"./internal/streams/BufferList":22,"./internal/streams/destroy":23,"./internal/streams/stream":24,"_process":11,"core-util-is":25,"events":7,"inherits":9,"isarray":26,"process-nextick-args":27,"safe-buffer":28,"string_decoder/":41,"util":3}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6864,7 +5102,7 @@ function done(stream, er, data) {
 
   return stream.push(null);
 }
-},{"./_stream_duplex":27,"core-util-is":35,"inherits":19}],31:[function(require,module,exports){
+},{"./_stream_duplex":17,"core-util-is":25,"inherits":9}],21:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -7531,7 +5769,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_stream_duplex":27,"./internal/streams/destroy":33,"./internal/streams/stream":34,"_process":21,"core-util-is":35,"inherits":19,"process-nextick-args":37,"safe-buffer":38,"util-deprecate":40}],32:[function(require,module,exports){
+},{"./_stream_duplex":17,"./internal/streams/destroy":23,"./internal/streams/stream":24,"_process":11,"core-util-is":25,"inherits":9,"process-nextick-args":27,"safe-buffer":28,"util-deprecate":29}],22:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -7606,7 +5844,7 @@ module.exports = function () {
 
   return BufferList;
 }();
-},{"safe-buffer":38}],33:[function(require,module,exports){
+},{"safe-buffer":28}],23:[function(require,module,exports){
 'use strict';
 
 /*<replacement>*/
@@ -7679,10 +5917,10 @@ module.exports = {
   destroy: destroy,
   undestroy: undestroy
 };
-},{"process-nextick-args":37}],34:[function(require,module,exports){
+},{"process-nextick-args":27}],24:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":17}],35:[function(require,module,exports){
+},{"events":7}],25:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -7793,14 +6031,14 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../../../insert-module-globals/node_modules/is-buffer/index.js")})
-},{"../../../../insert-module-globals/node_modules/is-buffer/index.js":20}],36:[function(require,module,exports){
+},{"../../../../insert-module-globals/node_modules/is-buffer/index.js":10}],26:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = Array.isArray || function (arr) {
   return toString.call(arr) == '[object Array]';
 };
 
-},{}],37:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -7847,7 +6085,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 }
 
 }).call(this,require('_process'))
-},{"_process":21}],38:[function(require,module,exports){
+},{"_process":11}],28:[function(require,module,exports){
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
 var Buffer = buffer.Buffer
@@ -7911,280 +6149,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":14}],39:[function(require,module,exports){
-'use strict';
-
-var Buffer = require('safe-buffer').Buffer;
-
-var isEncoding = Buffer.isEncoding || function (encoding) {
-  encoding = '' + encoding;
-  switch (encoding && encoding.toLowerCase()) {
-    case 'hex':case 'utf8':case 'utf-8':case 'ascii':case 'binary':case 'base64':case 'ucs2':case 'ucs-2':case 'utf16le':case 'utf-16le':case 'raw':
-      return true;
-    default:
-      return false;
-  }
-};
-
-function _normalizeEncoding(enc) {
-  if (!enc) return 'utf8';
-  var retried;
-  while (true) {
-    switch (enc) {
-      case 'utf8':
-      case 'utf-8':
-        return 'utf8';
-      case 'ucs2':
-      case 'ucs-2':
-      case 'utf16le':
-      case 'utf-16le':
-        return 'utf16le';
-      case 'latin1':
-      case 'binary':
-        return 'latin1';
-      case 'base64':
-      case 'ascii':
-      case 'hex':
-        return enc;
-      default:
-        if (retried) return; // undefined
-        enc = ('' + enc).toLowerCase();
-        retried = true;
-    }
-  }
-};
-
-// Do not cache `Buffer.isEncoding` when checking encoding names as some
-// modules monkey-patch it to support additional encodings
-function normalizeEncoding(enc) {
-  var nenc = _normalizeEncoding(enc);
-  if (typeof nenc !== 'string' && (Buffer.isEncoding === isEncoding || !isEncoding(enc))) throw new Error('Unknown encoding: ' + enc);
-  return nenc || enc;
-}
-
-// StringDecoder provides an interface for efficiently splitting a series of
-// buffers into a series of JS strings without breaking apart multi-byte
-// characters.
-exports.StringDecoder = StringDecoder;
-function StringDecoder(encoding) {
-  this.encoding = normalizeEncoding(encoding);
-  var nb;
-  switch (this.encoding) {
-    case 'utf16le':
-      this.text = utf16Text;
-      this.end = utf16End;
-      nb = 4;
-      break;
-    case 'utf8':
-      this.fillLast = utf8FillLast;
-      nb = 4;
-      break;
-    case 'base64':
-      this.text = base64Text;
-      this.end = base64End;
-      nb = 3;
-      break;
-    default:
-      this.write = simpleWrite;
-      this.end = simpleEnd;
-      return;
-  }
-  this.lastNeed = 0;
-  this.lastTotal = 0;
-  this.lastChar = Buffer.allocUnsafe(nb);
-}
-
-StringDecoder.prototype.write = function (buf) {
-  if (buf.length === 0) return '';
-  var r;
-  var i;
-  if (this.lastNeed) {
-    r = this.fillLast(buf);
-    if (r === undefined) return '';
-    i = this.lastNeed;
-    this.lastNeed = 0;
-  } else {
-    i = 0;
-  }
-  if (i < buf.length) return r ? r + this.text(buf, i) : this.text(buf, i);
-  return r || '';
-};
-
-StringDecoder.prototype.end = utf8End;
-
-// Returns only complete characters in a Buffer
-StringDecoder.prototype.text = utf8Text;
-
-// Attempts to complete a partial non-UTF-8 character using bytes from a Buffer
-StringDecoder.prototype.fillLast = function (buf) {
-  if (this.lastNeed <= buf.length) {
-    buf.copy(this.lastChar, this.lastTotal - this.lastNeed, 0, this.lastNeed);
-    return this.lastChar.toString(this.encoding, 0, this.lastTotal);
-  }
-  buf.copy(this.lastChar, this.lastTotal - this.lastNeed, 0, buf.length);
-  this.lastNeed -= buf.length;
-};
-
-// Checks the type of a UTF-8 byte, whether it's ASCII, a leading byte, or a
-// continuation byte.
-function utf8CheckByte(byte) {
-  if (byte <= 0x7F) return 0;else if (byte >> 5 === 0x06) return 2;else if (byte >> 4 === 0x0E) return 3;else if (byte >> 3 === 0x1E) return 4;
-  return -1;
-}
-
-// Checks at most 3 bytes at the end of a Buffer in order to detect an
-// incomplete multi-byte UTF-8 character. The total number of bytes (2, 3, or 4)
-// needed to complete the UTF-8 character (if applicable) are returned.
-function utf8CheckIncomplete(self, buf, i) {
-  var j = buf.length - 1;
-  if (j < i) return 0;
-  var nb = utf8CheckByte(buf[j]);
-  if (nb >= 0) {
-    if (nb > 0) self.lastNeed = nb - 1;
-    return nb;
-  }
-  if (--j < i) return 0;
-  nb = utf8CheckByte(buf[j]);
-  if (nb >= 0) {
-    if (nb > 0) self.lastNeed = nb - 2;
-    return nb;
-  }
-  if (--j < i) return 0;
-  nb = utf8CheckByte(buf[j]);
-  if (nb >= 0) {
-    if (nb > 0) {
-      if (nb === 2) nb = 0;else self.lastNeed = nb - 3;
-    }
-    return nb;
-  }
-  return 0;
-}
-
-// Validates as many continuation bytes for a multi-byte UTF-8 character as
-// needed or are available. If we see a non-continuation byte where we expect
-// one, we "replace" the validated continuation bytes we've seen so far with
-// UTF-8 replacement characters ('\ufffd'), to match v8's UTF-8 decoding
-// behavior. The continuation byte check is included three times in the case
-// where all of the continuation bytes for a character exist in the same buffer.
-// It is also done this way as a slight performance increase instead of using a
-// loop.
-function utf8CheckExtraBytes(self, buf, p) {
-  if ((buf[0] & 0xC0) !== 0x80) {
-    self.lastNeed = 0;
-    return '\ufffd'.repeat(p);
-  }
-  if (self.lastNeed > 1 && buf.length > 1) {
-    if ((buf[1] & 0xC0) !== 0x80) {
-      self.lastNeed = 1;
-      return '\ufffd'.repeat(p + 1);
-    }
-    if (self.lastNeed > 2 && buf.length > 2) {
-      if ((buf[2] & 0xC0) !== 0x80) {
-        self.lastNeed = 2;
-        return '\ufffd'.repeat(p + 2);
-      }
-    }
-  }
-}
-
-// Attempts to complete a multi-byte UTF-8 character using bytes from a Buffer.
-function utf8FillLast(buf) {
-  var p = this.lastTotal - this.lastNeed;
-  var r = utf8CheckExtraBytes(this, buf, p);
-  if (r !== undefined) return r;
-  if (this.lastNeed <= buf.length) {
-    buf.copy(this.lastChar, p, 0, this.lastNeed);
-    return this.lastChar.toString(this.encoding, 0, this.lastTotal);
-  }
-  buf.copy(this.lastChar, p, 0, buf.length);
-  this.lastNeed -= buf.length;
-}
-
-// Returns all complete UTF-8 characters in a Buffer. If the Buffer ended on a
-// partial character, the character's bytes are buffered until the required
-// number of bytes are available.
-function utf8Text(buf, i) {
-  var total = utf8CheckIncomplete(this, buf, i);
-  if (!this.lastNeed) return buf.toString('utf8', i);
-  this.lastTotal = total;
-  var end = buf.length - (total - this.lastNeed);
-  buf.copy(this.lastChar, 0, end);
-  return buf.toString('utf8', i, end);
-}
-
-// For UTF-8, a replacement character for each buffered byte of a (partial)
-// character needs to be added to the output.
-function utf8End(buf) {
-  var r = buf && buf.length ? this.write(buf) : '';
-  if (this.lastNeed) return r + '\ufffd'.repeat(this.lastTotal - this.lastNeed);
-  return r;
-}
-
-// UTF-16LE typically needs two bytes per character, but even if we have an even
-// number of bytes available, we need to check if we end on a leading/high
-// surrogate. In that case, we need to wait for the next two bytes in order to
-// decode the last character properly.
-function utf16Text(buf, i) {
-  if ((buf.length - i) % 2 === 0) {
-    var r = buf.toString('utf16le', i);
-    if (r) {
-      var c = r.charCodeAt(r.length - 1);
-      if (c >= 0xD800 && c <= 0xDBFF) {
-        this.lastNeed = 2;
-        this.lastTotal = 4;
-        this.lastChar[0] = buf[buf.length - 2];
-        this.lastChar[1] = buf[buf.length - 1];
-        return r.slice(0, -1);
-      }
-    }
-    return r;
-  }
-  this.lastNeed = 1;
-  this.lastTotal = 2;
-  this.lastChar[0] = buf[buf.length - 1];
-  return buf.toString('utf16le', i, buf.length - 1);
-}
-
-// For UTF-16LE we do not explicitly append special replacement characters if we
-// end on a partial character, we simply let v8 handle that.
-function utf16End(buf) {
-  var r = buf && buf.length ? this.write(buf) : '';
-  if (this.lastNeed) {
-    var end = this.lastTotal - this.lastNeed;
-    return r + this.lastChar.toString('utf16le', 0, end);
-  }
-  return r;
-}
-
-function base64Text(buf, i) {
-  var n = (buf.length - i) % 3;
-  if (n === 0) return buf.toString('base64', i);
-  this.lastNeed = 3 - n;
-  this.lastTotal = 3;
-  if (n === 1) {
-    this.lastChar[0] = buf[buf.length - 1];
-  } else {
-    this.lastChar[0] = buf[buf.length - 2];
-    this.lastChar[1] = buf[buf.length - 1];
-  }
-  return buf.toString('base64', i, buf.length - n);
-}
-
-function base64End(buf) {
-  var r = buf && buf.length ? this.write(buf) : '';
-  if (this.lastNeed) return r + this.lastChar.toString('base64', 0, 3 - this.lastNeed);
-  return r;
-}
-
-// Pass bytes on through for single-byte encodings (e.g. ascii, latin1, hex)
-function simpleWrite(buf) {
-  return buf.toString(this.encoding);
-}
-
-function simpleEnd(buf) {
-  return buf && buf.length ? this.write(buf) : '';
-}
-},{"safe-buffer":38}],40:[function(require,module,exports){
+},{"buffer":4}],29:[function(require,module,exports){
 (function (global){
 
 /**
@@ -8255,10 +6220,10 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],41:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 module.exports = require('./readable').PassThrough
 
-},{"./readable":42}],42:[function(require,module,exports){
+},{"./readable":31}],31:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = exports;
 exports.Readable = exports;
@@ -8267,13 +6232,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":27,"./lib/_stream_passthrough.js":28,"./lib/_stream_readable.js":29,"./lib/_stream_transform.js":30,"./lib/_stream_writable.js":31}],43:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":17,"./lib/_stream_passthrough.js":18,"./lib/_stream_readable.js":19,"./lib/_stream_transform.js":20,"./lib/_stream_writable.js":21}],32:[function(require,module,exports){
 module.exports = require('./readable').Transform
 
-},{"./readable":42}],44:[function(require,module,exports){
+},{"./readable":31}],33:[function(require,module,exports){
 module.exports = require('./lib/_stream_writable.js');
 
-},{"./lib/_stream_writable.js":31}],45:[function(require,module,exports){
+},{"./lib/_stream_writable.js":21}],34:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8402,7 +6367,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":17,"inherits":19,"readable-stream/duplex.js":26,"readable-stream/passthrough.js":41,"readable-stream/readable.js":42,"readable-stream/transform.js":43,"readable-stream/writable.js":44}],46:[function(require,module,exports){
+},{"events":7,"inherits":9,"readable-stream/duplex.js":16,"readable-stream/passthrough.js":30,"readable-stream/readable.js":31,"readable-stream/transform.js":32,"readable-stream/writable.js":33}],35:[function(require,module,exports){
 (function (global){
 var ClientRequest = require('./lib/request')
 var extend = require('xtend')
@@ -8484,7 +6449,7 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":48,"builtin-status-codes":50,"url":52,"xtend":57}],47:[function(require,module,exports){
+},{"./lib/request":37,"builtin-status-codes":39,"url":43,"xtend":48}],36:[function(require,module,exports){
 (function (global){
 exports.fetch = isFunction(global.fetch) && isFunction(global.ReadableStream)
 
@@ -8557,7 +6522,7 @@ function isFunction (value) {
 xhr = null // Help gc
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],48:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -8867,7 +6832,7 @@ var unsafeHeaders = [
 ]
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":47,"./response":49,"_process":21,"buffer":14,"inherits":19,"readable-stream":42,"to-arraybuffer":51}],49:[function(require,module,exports){
+},{"./capability":36,"./response":38,"_process":11,"buffer":4,"inherits":9,"readable-stream":31,"to-arraybuffer":40}],38:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -9053,7 +7018,7 @@ IncomingMessage.prototype._onXHRProgress = function () {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":47,"_process":21,"buffer":14,"inherits":19,"readable-stream":42}],50:[function(require,module,exports){
+},{"./capability":36,"_process":11,"buffer":4,"inherits":9,"readable-stream":31}],39:[function(require,module,exports){
 module.exports = {
   "100": "Continue",
   "101": "Switching Protocols",
@@ -9119,7 +7084,7 @@ module.exports = {
   "511": "Network Authentication Required"
 }
 
-},{}],51:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 var Buffer = require('buffer').Buffer
 
 module.exports = function (buf) {
@@ -9148,7 +7113,282 @@ module.exports = function (buf) {
 	}
 }
 
-},{"buffer":14}],52:[function(require,module,exports){
+},{"buffer":4}],41:[function(require,module,exports){
+'use strict';
+
+var Buffer = require('safe-buffer').Buffer;
+
+var isEncoding = Buffer.isEncoding || function (encoding) {
+  encoding = '' + encoding;
+  switch (encoding && encoding.toLowerCase()) {
+    case 'hex':case 'utf8':case 'utf-8':case 'ascii':case 'binary':case 'base64':case 'ucs2':case 'ucs-2':case 'utf16le':case 'utf-16le':case 'raw':
+      return true;
+    default:
+      return false;
+  }
+};
+
+function _normalizeEncoding(enc) {
+  if (!enc) return 'utf8';
+  var retried;
+  while (true) {
+    switch (enc) {
+      case 'utf8':
+      case 'utf-8':
+        return 'utf8';
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return 'utf16le';
+      case 'latin1':
+      case 'binary':
+        return 'latin1';
+      case 'base64':
+      case 'ascii':
+      case 'hex':
+        return enc;
+      default:
+        if (retried) return; // undefined
+        enc = ('' + enc).toLowerCase();
+        retried = true;
+    }
+  }
+};
+
+// Do not cache `Buffer.isEncoding` when checking encoding names as some
+// modules monkey-patch it to support additional encodings
+function normalizeEncoding(enc) {
+  var nenc = _normalizeEncoding(enc);
+  if (typeof nenc !== 'string' && (Buffer.isEncoding === isEncoding || !isEncoding(enc))) throw new Error('Unknown encoding: ' + enc);
+  return nenc || enc;
+}
+
+// StringDecoder provides an interface for efficiently splitting a series of
+// buffers into a series of JS strings without breaking apart multi-byte
+// characters.
+exports.StringDecoder = StringDecoder;
+function StringDecoder(encoding) {
+  this.encoding = normalizeEncoding(encoding);
+  var nb;
+  switch (this.encoding) {
+    case 'utf16le':
+      this.text = utf16Text;
+      this.end = utf16End;
+      nb = 4;
+      break;
+    case 'utf8':
+      this.fillLast = utf8FillLast;
+      nb = 4;
+      break;
+    case 'base64':
+      this.text = base64Text;
+      this.end = base64End;
+      nb = 3;
+      break;
+    default:
+      this.write = simpleWrite;
+      this.end = simpleEnd;
+      return;
+  }
+  this.lastNeed = 0;
+  this.lastTotal = 0;
+  this.lastChar = Buffer.allocUnsafe(nb);
+}
+
+StringDecoder.prototype.write = function (buf) {
+  if (buf.length === 0) return '';
+  var r;
+  var i;
+  if (this.lastNeed) {
+    r = this.fillLast(buf);
+    if (r === undefined) return '';
+    i = this.lastNeed;
+    this.lastNeed = 0;
+  } else {
+    i = 0;
+  }
+  if (i < buf.length) return r ? r + this.text(buf, i) : this.text(buf, i);
+  return r || '';
+};
+
+StringDecoder.prototype.end = utf8End;
+
+// Returns only complete characters in a Buffer
+StringDecoder.prototype.text = utf8Text;
+
+// Attempts to complete a partial non-UTF-8 character using bytes from a Buffer
+StringDecoder.prototype.fillLast = function (buf) {
+  if (this.lastNeed <= buf.length) {
+    buf.copy(this.lastChar, this.lastTotal - this.lastNeed, 0, this.lastNeed);
+    return this.lastChar.toString(this.encoding, 0, this.lastTotal);
+  }
+  buf.copy(this.lastChar, this.lastTotal - this.lastNeed, 0, buf.length);
+  this.lastNeed -= buf.length;
+};
+
+// Checks the type of a UTF-8 byte, whether it's ASCII, a leading byte, or a
+// continuation byte.
+function utf8CheckByte(byte) {
+  if (byte <= 0x7F) return 0;else if (byte >> 5 === 0x06) return 2;else if (byte >> 4 === 0x0E) return 3;else if (byte >> 3 === 0x1E) return 4;
+  return -1;
+}
+
+// Checks at most 3 bytes at the end of a Buffer in order to detect an
+// incomplete multi-byte UTF-8 character. The total number of bytes (2, 3, or 4)
+// needed to complete the UTF-8 character (if applicable) are returned.
+function utf8CheckIncomplete(self, buf, i) {
+  var j = buf.length - 1;
+  if (j < i) return 0;
+  var nb = utf8CheckByte(buf[j]);
+  if (nb >= 0) {
+    if (nb > 0) self.lastNeed = nb - 1;
+    return nb;
+  }
+  if (--j < i) return 0;
+  nb = utf8CheckByte(buf[j]);
+  if (nb >= 0) {
+    if (nb > 0) self.lastNeed = nb - 2;
+    return nb;
+  }
+  if (--j < i) return 0;
+  nb = utf8CheckByte(buf[j]);
+  if (nb >= 0) {
+    if (nb > 0) {
+      if (nb === 2) nb = 0;else self.lastNeed = nb - 3;
+    }
+    return nb;
+  }
+  return 0;
+}
+
+// Validates as many continuation bytes for a multi-byte UTF-8 character as
+// needed or are available. If we see a non-continuation byte where we expect
+// one, we "replace" the validated continuation bytes we've seen so far with
+// UTF-8 replacement characters ('\ufffd'), to match v8's UTF-8 decoding
+// behavior. The continuation byte check is included three times in the case
+// where all of the continuation bytes for a character exist in the same buffer.
+// It is also done this way as a slight performance increase instead of using a
+// loop.
+function utf8CheckExtraBytes(self, buf, p) {
+  if ((buf[0] & 0xC0) !== 0x80) {
+    self.lastNeed = 0;
+    return '\ufffd'.repeat(p);
+  }
+  if (self.lastNeed > 1 && buf.length > 1) {
+    if ((buf[1] & 0xC0) !== 0x80) {
+      self.lastNeed = 1;
+      return '\ufffd'.repeat(p + 1);
+    }
+    if (self.lastNeed > 2 && buf.length > 2) {
+      if ((buf[2] & 0xC0) !== 0x80) {
+        self.lastNeed = 2;
+        return '\ufffd'.repeat(p + 2);
+      }
+    }
+  }
+}
+
+// Attempts to complete a multi-byte UTF-8 character using bytes from a Buffer.
+function utf8FillLast(buf) {
+  var p = this.lastTotal - this.lastNeed;
+  var r = utf8CheckExtraBytes(this, buf, p);
+  if (r !== undefined) return r;
+  if (this.lastNeed <= buf.length) {
+    buf.copy(this.lastChar, p, 0, this.lastNeed);
+    return this.lastChar.toString(this.encoding, 0, this.lastTotal);
+  }
+  buf.copy(this.lastChar, p, 0, buf.length);
+  this.lastNeed -= buf.length;
+}
+
+// Returns all complete UTF-8 characters in a Buffer. If the Buffer ended on a
+// partial character, the character's bytes are buffered until the required
+// number of bytes are available.
+function utf8Text(buf, i) {
+  var total = utf8CheckIncomplete(this, buf, i);
+  if (!this.lastNeed) return buf.toString('utf8', i);
+  this.lastTotal = total;
+  var end = buf.length - (total - this.lastNeed);
+  buf.copy(this.lastChar, 0, end);
+  return buf.toString('utf8', i, end);
+}
+
+// For UTF-8, a replacement character for each buffered byte of a (partial)
+// character needs to be added to the output.
+function utf8End(buf) {
+  var r = buf && buf.length ? this.write(buf) : '';
+  if (this.lastNeed) return r + '\ufffd'.repeat(this.lastTotal - this.lastNeed);
+  return r;
+}
+
+// UTF-16LE typically needs two bytes per character, but even if we have an even
+// number of bytes available, we need to check if we end on a leading/high
+// surrogate. In that case, we need to wait for the next two bytes in order to
+// decode the last character properly.
+function utf16Text(buf, i) {
+  if ((buf.length - i) % 2 === 0) {
+    var r = buf.toString('utf16le', i);
+    if (r) {
+      var c = r.charCodeAt(r.length - 1);
+      if (c >= 0xD800 && c <= 0xDBFF) {
+        this.lastNeed = 2;
+        this.lastTotal = 4;
+        this.lastChar[0] = buf[buf.length - 2];
+        this.lastChar[1] = buf[buf.length - 1];
+        return r.slice(0, -1);
+      }
+    }
+    return r;
+  }
+  this.lastNeed = 1;
+  this.lastTotal = 2;
+  this.lastChar[0] = buf[buf.length - 1];
+  return buf.toString('utf16le', i, buf.length - 1);
+}
+
+// For UTF-16LE we do not explicitly append special replacement characters if we
+// end on a partial character, we simply let v8 handle that.
+function utf16End(buf) {
+  var r = buf && buf.length ? this.write(buf) : '';
+  if (this.lastNeed) {
+    var end = this.lastTotal - this.lastNeed;
+    return r + this.lastChar.toString('utf16le', 0, end);
+  }
+  return r;
+}
+
+function base64Text(buf, i) {
+  var n = (buf.length - i) % 3;
+  if (n === 0) return buf.toString('base64', i);
+  this.lastNeed = 3 - n;
+  this.lastTotal = 3;
+  if (n === 1) {
+    this.lastChar[0] = buf[buf.length - 1];
+  } else {
+    this.lastChar[0] = buf[buf.length - 2];
+    this.lastChar[1] = buf[buf.length - 1];
+  }
+  return buf.toString('base64', i, buf.length - n);
+}
+
+function base64End(buf) {
+  var r = buf && buf.length ? this.write(buf) : '';
+  if (this.lastNeed) return r + this.lastChar.toString('base64', 0, 3 - this.lastNeed);
+  return r;
+}
+
+// Pass bytes on through for single-byte encodings (e.g. ascii, latin1, hex)
+function simpleWrite(buf) {
+  return buf.toString(this.encoding);
+}
+
+function simpleEnd(buf) {
+  return buf && buf.length ? this.write(buf) : '';
+}
+},{"safe-buffer":42}],42:[function(require,module,exports){
+arguments[4][28][0].apply(exports,arguments)
+},{"buffer":4,"dup":28}],43:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -9882,7 +8122,7 @@ Url.prototype.parseHost = function() {
   if (host) this.hostname = host;
 };
 
-},{"./util":53,"punycode":22,"querystring":25}],53:[function(require,module,exports){
+},{"./util":44,"punycode":12,"querystring":15}],44:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -9900,16 +8140,16 @@ module.exports = {
   }
 };
 
-},{}],54:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],55:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],46:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],56:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -10499,7 +8739,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":55,"_process":21,"inherits":54}],57:[function(require,module,exports){
+},{"./support/isBuffer":46,"_process":11,"inherits":45}],48:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -10520,7 +8760,1789 @@ function extend() {
     return target
 }
 
-},{}],58:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
+var http2 = require('http2.js');
+
+// TODO extend AGENT
+function Http2CacheAgent() {
+	http2.Agent.apply(this, arguments);
+}
+
+Http2CacheAgent.prototype = Object.create(http2.Agent.prototype, {
+	// TODO override http2.Agent
+});
+
+exports.Agent = Http2CacheAgent;
+},{"http2.js":83}],50:[function(require,module,exports){
+var EventEmitter = require('events').EventEmitter,
+    util = require('util'),
+    redefine = require('./utils').redefine;
+
+function CacheListener(configuration) {
+
+    var cl = this;
+    redefine(configuration.cache, 'put', function (k, v) {
+        var self = this;
+        return new Promise(function (resolve, reject) {
+            self._put(k, v).then(function () {
+                if (self.debug) {
+                    self._log.debug("Cached response: " + k.href);
+                }
+                cl.emit('cached', k.href);
+                resolve();
+            }).catch(reject);
+        });
+    });
+
+    redefine(configuration.cache, 'match', function (k) {
+        var self = this;
+        return new Promise(function (resolve, reject) {
+            self._match(k).then(function (response) {
+                if (self.debug) {
+                    if(response){
+                        self._log.debug("Using cached response for request to: " + k.href);
+                    }else{
+                        self._log.debug("Cache miss for request: " + k.href);
+                    }
+
+                }
+                resolve(response);
+            }).catch(reject);
+        });
+    });
+
+    EventEmitter.call(this);
+}
+
+util.inherits(CacheListener, EventEmitter);
+
+
+module.exports = {
+    CacheListener: CacheListener
+};
+},{"./utils":56,"events":7,"util":47}],51:[function(require,module,exports){
+var Dict = require("collections/dict"),
+    logger = require('./logger'),
+    keys = require('object-keys'),
+    Map = require("collections/map");
+
+// https://github.com/roryf/parse-cache-control/blob/master/LICENSE
+/*
+ Cache-Control   = 1#cache-directive
+ cache-directive = token [ "=" ( token / quoted-string ) ]
+ token           = [^\x00-\x20\(\)<>@\,;\:\\"\/\[\]\?\=\{\}\x7F]+
+ quoted-string   = "(?:[^"\\]|\\.)*"
+*/
+//                             1: directive                                        =   2: token                                              3: quoted-string
+
+function parseMaxAge(maxAge) {
+    // Only parse once
+    if (typeof maxAge === 'number') {
+        return maxAge;
+    }
+    return parseInt(maxAge, 10);
+}
+
+function getMaxAgeHeaderName(header) {
+    if (header['max-age'] && header['s-maxage']) {
+        // Get bigest value of both
+        return parseInt(header['max-age'], 10) < parseInt(header['s-maxage'], 10) ? 's-maxage' : 'max-age';
+    } else {
+        return 'max-age';
+    }
+}
+
+var PARSE_CACHE_CONTROL_REG = /(?:^|(?:\s*\,\s*))([^\x00-\x20\(\)<>@\,;\:\\"\/\[\]\?\=\{\}\x7F]+)(?:\=(?:([^\x00-\x20\(\)<>@\,;\:\\"\/\[\]\?\=\{\}\x7F]+)|(?:\"((?:[^"\\]|\\.)*)\")))?/g;
+function parseCacheControl(field) {
+
+    if (typeof field !== 'string') {
+        return null;
+    }
+
+    var header = {};
+    var error = field.replace(PARSE_CACHE_CONTROL_REG, function ($0, $1, $2, $3) {
+        var value = $2 || $3;
+        header[$1] = value ? value.toLowerCase() : true;
+        return '';
+    });
+
+    var maxAgeHeaderName = getMaxAgeHeaderName(header),
+        maxAge = header[maxAgeHeaderName];
+
+    if (maxAge) {
+        maxAge = parseMaxAge(maxAge);
+        if (isNaN(maxAge)) {
+            return null;
+        } else if (maxAge) {
+
+            if (header['s-maxage']) {
+                header['s-maxage'] = maxAge;
+            }
+
+            header['max-age'] = maxAge;
+        }   
+    }
+
+    return (error ? null : header);
+}
+
+function getCacheControlHeaders(response) {
+    return response.headers['cache-control'];
+}
+
+//////////////////////////////////////////// Request Info ////////////////////////////////////////////
+
+function getRequestInfoHeaders(requestInfo, headers) {
+
+    // Make headers and Object to match response (see parseCacheControl and getCacheControlHeaders)
+    if (headers instanceof Map) {
+        var headerMap = headers;
+        headers = {};
+        headerMap.forEach(function(value, key) {
+             headers[key] = value;
+        });
+    }
+
+    // Create read-only prop on headers Object
+    var requestInfoHeaders = requestInfo.headers || {};
+    Object.keys(headers).forEach(function(key) {
+        Object.defineProperty(requestInfoHeaders, key, {
+            configurable: false,
+            writable: false,
+            value: headers[key]
+        });
+    });
+
+    return requestInfoHeaders;
+}
+
+var RequestInfo = function (method, href, headers) {
+    var self = this;
+    self.method = method;
+    self.href = href;
+    self.headers = getRequestInfoHeaders(self, headers);
+
+    var cacheControlHeader = getCacheControlHeaders(self);
+    self.cacheDirectives = parseCacheControl(cacheControlHeader);
+
+    self.hash = self.method + '^' + self.href;
+};
+
+//////////////////////////////////////////// Cache ////////////////////////////////////////////
+
+function Cache(options) {
+    var self = this;
+    options = options || {};
+
+    // Init debug/log
+    self.debug = options.debug;
+    self._log = options.log || (self.debug ? logger.consoleLogger : logger.defaultLogger);
+
+    // mapping from hash of request info to time ordered list or responses
+    this._requestInfoToResponses = new Dict();
+    this._requestInfoRevalidating = new Dict();
+}
+
+var cp = Cache.prototype;
+
+cp.setDebug = function (debug) {
+    this._debug = debug;
+};
+
+function getExpireTime(response, cacheDirectives, revalidating) {
+    
+    var maxAgeAt = -1,
+        staleButRevalidateAt = -1;
+
+
+    var date = response.headers.date;
+    if (!date) {
+        // TODO RFC error here, maybe we should ignore the request
+        date = new Date().getTime();
+    } else {
+        date = new Date(date).getTime();
+    }
+
+    if (cacheDirectives['max-age']) {
+        maxAgeAt = date + (cacheDirectives['max-age'] * 1000);
+    }
+
+    if (revalidating && cacheDirectives['stale-while-revalidate']) {
+        staleButRevalidateAt = date + (cacheDirectives['stale-while-revalidate'] * 1000);
+    }
+
+    return maxAgeAt > staleButRevalidateAt ? maxAgeAt : staleButRevalidateAt;
+}
+
+function satisfiesRequest(requestInfo, candidate, candidateHash, revalidating) {
+
+    var currentTime = new Date().getTime(), // TODO get time from requestInfo ?
+        cacheControlHeaders = getCacheControlHeaders(candidate),
+        cacheResponseDirectives = parseCacheControl(cacheControlHeaders);
+
+    return getExpireTime(candidate, cacheResponseDirectives, revalidating) > currentTime && 
+        requestInfo.hash === candidateHash;
+}
+
+var CACHEABLE_BY_DEFAULT_STATUS_CODES = [200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501];
+function isCacheableResponse(response, cacheResponseDirectives) {
+
+    if (CACHEABLE_BY_DEFAULT_STATUS_CODES.indexOf(response.statusCode) === -1) {
+        return false;
+    }
+
+    var cacheControlHeaders = getCacheControlHeaders(response);
+    if (cacheControlHeaders) {
+        cacheResponseDirectives = cacheResponseDirectives || parseCacheControl(cacheControlHeaders);
+        if (cacheResponseDirectives['max-age']) {
+            return true;
+        } else if(cacheResponseDirectives['stale-while-revalidate']) {
+            return true;
+        }
+    }
+    return false;
+}
+
+cp.match = function (requestInfo/*, options*/) {
+
+    var self = this;
+    return new Promise(function (resolve, reject) {
+        var response = null;
+
+        if (!(requestInfo instanceof RequestInfo)) {
+            reject(new TypeError("Invalid requestInfo argument"));
+        } else {
+
+            var requestCacheDirectives = requestInfo.cacheDirectives,
+                requestIsRevalidating = self.isRevalidating(requestInfo);
+
+            if (
+                // Cache by default 
+                // TODO why ?
+                requestCacheDirectives === null || 
+                    // Bypass cache
+                    !requestCacheDirectives['no-cache']
+            ) {
+
+                var candidate, candidateHash,
+                    candidates = self._requestInfoToResponses.get(requestInfo.hash) || new Dict(),
+                    cadidatesHashs = candidates.keys();
+
+                while (
+                    response === null &&
+                        (candidateHash = cadidatesHashs.next()) &&
+                            (candidateHash.done === false)
+                ) {
+
+                    candidate = candidateHash.value && 
+                                    candidates.get(candidateHash.value);
+
+                    if (
+                        candidate && 
+                            satisfiesRequest(requestInfo, candidate, candidateHash.value, requestIsRevalidating)
+                    ) {
+                        response = candidate;
+                    }
+                }                
+            }
+            
+            resolve(response);   
+        }
+    });
+};
+
+function isExpired(candidate, currentTime) {
+    var cacheControlHeaders = getCacheControlHeaders(candidate),
+        cacheResponseDirectives = parseCacheControl(cacheControlHeaders);
+    return getExpireTime(candidate, cacheResponseDirectives) < currentTime;
+}
+
+cp.clearExpired = function () {
+    var self = this;
+    self._requestInfoToResponses.forEach(function (candidates) {
+        candidates.forEach(function (response, requestInfoHash) {
+            var currentTime = new Date().getTime();
+            if (isExpired(response, currentTime)) {
+                if (self._debug) {
+                    self._log.debug("Evicted Response from cache for requestInfo Hash: " + requestInfoHash);
+                }
+                self._requestInfoToResponses.delete(requestInfoHash);
+            }
+        });
+    });
+};
+
+/**
+ * Clear all requestInfos from revalidation.
+ */
+cp.clearRevalidates = function () {
+    this._requestInfoRevalidating = new Dict();
+};
+
+/**
+ * Check if a given requestInfo is currently revalidating.
+ */
+cp.isRevalidating = function (requestInfo) {
+    return !!this._requestInfoRevalidating.get(requestInfo.hash);
+};
+
+/**
+ * Add given requestInfo to revalidating.
+ */
+cp.revalidate = function (requestInfo) {
+    var self = this,
+        revalidate = self._requestInfoRevalidating.get(requestInfo.hash) || 0;
+
+    // TODO special behavior ?
+    if (self._requestInfoRevalidating.get(requestInfo.hash)) {
+        if (self._debug) {
+            self._log.debug("Updated requestInfo for revalidating with hash: " + requestInfo.hash);
+        }
+    } else {
+        if (self._debug) {
+            self._log.debug("Added requestInfo to revalidate with hash: " + requestInfo.hash);
+        }
+    }
+    revalidate++;
+
+    self._requestInfoRevalidating.set(requestInfo.hash, revalidate);
+};
+
+/**
+ * Clear given requestInfo from revalidation.
+ */
+cp.validated = function (requestInfo) {
+    var self = this,
+        revalidate = self._requestInfoRevalidating.get(requestInfo.hash) || 0;
+
+    if (revalidate > 0) {
+
+        revalidate--;
+
+        if (self._debug) {
+            self._log.debug("Evicted requestInfo from revalidate with hash: " + requestInfo.hash);
+        }
+
+        if (revalidate > 0) {
+            self._requestInfoRevalidating.set(requestInfo.hash, revalidate);
+        } else {
+            self._requestInfoRevalidating.delete(requestInfo.hash);   
+        }
+    }
+};
+
+/**
+ * Check requestInfo response for cache update, then update cache if cachable.
+ */
+cp.put = function (requestInfo, response) {
+    var self = this;
+    return new Promise(function (resolve, reject) {
+        // Check requestInfo type
+        if (!(requestInfo instanceof RequestInfo)) {
+            reject(new TypeError("Invalid requestInfo argument"));
+        } else {
+
+            var cacheControlHeaders = getCacheControlHeaders(response),
+                cacheResponseDirectives = parseCacheControl(cacheControlHeaders);
+
+            if (isCacheableResponse(response, cacheResponseDirectives) === false) {
+                reject(new Error("Not Cacheable response"));
+            } else {
+
+                var candidates = self._requestInfoToResponses.get(requestInfo.hash) || new Dict(),
+                    responseHash = requestInfo.hash;
+
+                if (self._debug) {
+                    self._log.debug("Adding cache entry to:" + requestInfo.hash + '/' + responseHash);
+                }
+
+                candidates.set(responseHash, response);
+                self._requestInfoToResponses.set(requestInfo.hash, candidates);
+
+                resolve();
+            }
+        }
+    });
+};
+
+//////////////////////////////////////////// Exports ////////////////////////////////////////////
+module.exports = {
+    RequestInfo: RequestInfo,
+    Cache: Cache,
+    parseCacheControl: parseCacheControl,
+    satisfiesRequest: satisfiesRequest,
+    isCacheableResponse: isCacheableResponse,
+};
+
+},{"./logger":55,"collections/dict":64,"collections/map":73,"object-keys":101}],52:[function(require,module,exports){
+var websocket = require('websocket-stream'),
+    keys = require('object-keys'),
+    http2 = require('http2.js'),
+    util = require('util'),
+    EventEmitter = require('events').EventEmitter,
+    InvalidStateError = require('./errors.js').InvalidStateError,
+    RequestInfo = require('./cache.js').RequestInfo,
+    Cache = require('./cache.js').Cache,
+    Agent = require('./agent').Agent,
+    logger = require('./logger'),
+    parseUrl = require('./utils').parseUrl,
+    getOrigin = require('./utils.js').getOrigin,
+    mergeTypedArrays = require('./utils.js').mergeTypedArrays,
+    defaultPort = require('./utils.js').defaultPort,
+    CacheListener = require('./cache-listener').CacheListener;
+
+//////////////////////////////////////////// Configuration ////////////////////////////////////////////
+function Configuration(options) {
+    var self = this;
+    self.options = (options || {});
+
+    EventEmitter.call(this);
+    
+    self._activeConfigurationCnt = 0;
+    self._proxyMap = {};
+    self._activeTransportConnections = {};
+            
+    // Init debug/log
+    self.debug = self.options.debug;
+    self._log = logger.consoleLogger;
+
+    self.setDebugLevel(self.options.debugLevel || self.options.debug);
+
+    // Init Cache
+    self.cache = options.cache || new Cache({
+        debug: self.debug,
+        log: self._log
+    });
+    self.cacheListener = new CacheListener(self);
+
+    self.agent = new Agent({
+        log: self._log
+    });
+}
+
+util.inherits(Configuration, EventEmitter);
+
+var confProto = Configuration.prototype;
+
+confProto.setDebugLevel = function (level) {
+
+    level = typeof level === 'string' ? level : level === true ? 'info' : null;
+
+    // Init debug/log
+    if (this._log && this._log.hasOwnProperty('debugLevel')) {
+        this._log.debugLevel = level;
+    }
+};
+
+confProto.configuring = function () {
+    this._activeConfigurationCnt++;
+};
+
+confProto.configured = function () {
+    this._activeConfigurationCnt--;
+    if (this._activeConfigurationCnt === 0) {
+        this.emit('completed');
+    }
+};
+
+confProto.isConfiguring = function () {
+    return this._activeConfigurationCnt > 0;
+};
+
+confProto.getTransport = function (url) {
+
+    var self = this,
+        hasExistingTransport = self._activeTransportConnections.hasOwnProperty(url),
+        hasActiveTransport =  hasExistingTransport && !!self._activeTransportConnections[url].writable;
+    
+    if (
+        hasExistingTransport === false || 
+            hasActiveTransport === false
+    ) {
+
+        // Cleanup on first existing transtort re-connection attempt.
+        if (hasExistingTransport) {
+
+            if (this.debug) {
+                this._log.info("Re-Opening transport: " + url);
+            }
+
+            // Clear pending revalidates 
+            this.cache.clearRevalidates();
+
+        } else {
+            if (this.debug) {
+                this._log.info("Opening transport: " + url);
+            }            
+        }
+
+        var parsedUrl = parseUrl(url);
+        if(parsedUrl.protocol === 'ws:' || parsedUrl.protocol === 'wss:'){
+            // TODO, maybe enable perMessageDeflate in production or on debug??
+            this._activeTransportConnections[url] = websocket(url, "h2", {
+                perMessageDeflate: this.debug === false
+            });
+        } else if(parsedUrl.protocol === 'tcp:'){
+            this._activeTransportConnections[url] = require('net').connect({
+                'host' : parsedUrl.hostname,
+                'port' : parsedUrl.port
+            });
+        } else {
+            throw new Error('Unrecognized transport protocol: ' + parsedUrl.protocol + ', for transport: ' + url);
+        }
+    }
+
+    return this._activeTransportConnections[url];
+};
+
+confProto.addTransportUrl = function (url, transport) {
+    
+    url = parseUrl(url); // Enforce
+    this._proxyMap[url.href] = transport;
+
+    return this;
+};
+
+confProto.getTransportUrl = function (url) {
+
+    url = parseUrl(url); // Enforce
+
+    var proxyUrl = keys(this._proxyMap).reduce(function (result, value) {
+        // Check that transport url match beginning of url
+        return url.href.indexOf(value) === 0 ? value : result;
+    }, false);
+
+    return proxyUrl && this._proxyMap[proxyUrl];
+};
+
+confProto.onPush = function (pushRequest) {
+    var self = this,
+        cache = self.cache,
+        origin = getOrigin(pushRequest.scheme + "://" + pushRequest.headers.host);
+    
+    // Create href
+    pushRequest.href = origin + pushRequest.url;
+
+    if (self.debug) {
+        self._log.info("Received push promise for: " + pushRequest.href);
+    }
+
+    // TODO pass pushRequest for future dedup pending requestInfo
+    var requestInfo = new RequestInfo(pushRequest.method, pushRequest.href, pushRequest.headers);
+
+    cache.revalidate(requestInfo);
+
+    pushRequest.on('response', function (response) {
+
+        // TODO match or partial move to _sendViaHttp2 xhr.js to avoid maintain both
+        response.on('data', function (data) {
+            response.data = mergeTypedArrays(response.data, data);
+        });
+        
+        response.on('end', function () {
+            cache.put(requestInfo, response).then(function () {
+                self._log.debug("Cache updated via push for proxied XHR(" + pushRequest.href + ")");
+            }, function (cacheError) {
+                self._log.debug("Cache error via push for proxied XHR(" + pushRequest.href + "):" + cacheError.message);                            
+            }).then(function () {
+                // Clear requestInfo revalidate state
+                cache.validated(requestInfo);
+            });
+        });
+
+        response.on('error', function (e) {
+            self._log.warn("Server push stream error: " + e);
+
+            // Clear requestInfo revalidate state
+            cache.validated(requestInfo);
+        });
+    });
+};
+
+// open h2 pull channel
+confProto.openH2StreamForPush = function (pushUrl, proxyTransportUrl) {
+    
+    var self = this,
+        pushUri = parseUrl(pushUrl);
+
+    if (self.debug) {
+        self._log.info('Opening h2 channel for Push Promises: ' + pushUrl);
+    }
+
+    var openH2StreamForPush, reopenH2StreamForPush, // expression not function,
+        request,
+        reconnectFailures = [],
+        reconnectAutoDelay = self.options.reconnectAutoDelay || 100,
+        reconnectAuto = self.options.reconnectAuto || true,
+        reconnectTimer =  null,
+        opened = false,
+        reopening = false;
+
+    reopenH2StreamForPush = function reopenH2StreamForPush(err) {
+        opened = false;
+        self._log.info(pushUrl + " push channel closed.");
+
+        // Clear pending revalidates 
+        self.cache.clearRevalidates();
+
+        if (err) {
+            self._log.warn("Push channel stream error: " + err);
+            reconnectFailures.push(err);
+
+            if (reconnectAuto && !reopening) {
+                var reOpendelay = reconnectFailures.length * reconnectAutoDelay;
+                
+                self._log.info("Push channel stream will re-open in " + reOpendelay + "ms .");
+
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(
+                    openH2StreamForPush,
+                    reOpendelay
+                );
+
+            } else {
+                self._log.warn("Push channel stream already reopening.");
+            }
+        }
+    };
+
+    openH2StreamForPush = function () {
+
+        self._log.info("Push channel will open: " + pushUri.href);
+
+        if (opened) {
+            throw new Error("Server push stream already opened.");
+        }
+
+        reopening = true;
+        opened = true;
+
+        var transport = self.getTransport(proxyTransportUrl);
+
+        var request = http2.raw.request({
+            hostname: pushUri.hostname,
+            port: pushUri.port,
+            path: pushUri.path,
+            transportUrl: proxyTransportUrl,
+            transport: transport,
+            agent: self.agent
+        }, function (response) {
+            reopening = false;
+
+            self._log.debug("Push channel opened: " + pushUri.href);
+            
+            response.on('finish', function (err) {
+                // TODO finished 
+                reconnectFailures.length = 0;
+                reopenH2StreamForPush(err, pushUri);
+            });
+
+            response.on('error', function (err) {
+                reopenH2StreamForPush(err, pushUri);
+            });
+
+            response.on('open', function () {
+                opened = true;
+                reconnectFailures.length = 0;
+            });
+
+            transport.on('close', function (err) {
+                opened = false;
+                reconnectFailures.length = 0;
+                reopenH2StreamForPush(err, pushUri);
+            });
+        });
+
+        request.on('error', function (err) {
+            reopening = false;
+            reopenH2StreamForPush(err, pushUri);
+        });
+
+        // add to cache when receive pushRequest
+        request.on('push', function (pushRequest) {
+            self._log.debug("Push channel received: " + pushRequest);
+            self.onPush(pushRequest);
+        });
+
+        request.end();
+
+        return request;
+    };
+
+    request = openH2StreamForPush(pushUri);
+
+    return request;
+};
+
+// parse config json
+confProto.parseConfig = function (config) {
+    try {
+        config = typeof config === 'string' ? JSON.parse(config) : config;
+    } catch (JsonErr) {
+        throw new Error('Unable to parse config: ' + config);
+    }
+    return config;
+};
+
+// add config by json
+confProto.addConfig = function (config) {
+        
+    // Decode config
+    config = this.parseConfig(config);
+
+    // Legacy with warning
+    if (config.pushURL) {
+        this._log.warn('XMLHttpRequest Http2-Cache configuration "pushURL" is now "push"');
+        config.push = config.pushURL;
+        delete config.pushURL;
+    }
+
+    var proxyTransportUrl = config.transport;
+    var pushUrl = config.push;
+    this.setDebugLevel(this.clientLogLevel || config.clientLogLevel);
+
+    var cntI = config.proxy.length;
+    for(var i = 0; i < cntI; i++) {
+        this.addTransportUrl(config.proxy[i], proxyTransportUrl);
+    }
+
+    if (pushUrl) {
+        this.openH2StreamForPush(parseUrl(defaultPort(pushUrl)), proxyTransportUrl);
+    }
+};
+
+// add config by url
+confProto.fetchConfig = function (url) {
+    var xhr = new XMLHttpRequest();
+    // TODO, consider using semi-public API??
+    xhr._open('GET', url);
+    this.configuring();
+    var self = this;
+    xhr.addEventListener("load", function () {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+            var status = xhr.status;
+            if (status !== 200) {
+                throw new InvalidStateError('Failed to load configuration ' + url + ', status code: ' + status);
+            }
+            self.addConfig(xhr.response);
+            self.configured();
+        }
+    }, true);
+    // TODO, consider using semi-public API??
+    xhr._send();
+};
+
+// add configs by an array of urls
+confProto.configure = function (urls) {
+    if (urls instanceof Array) {
+        var cntI = urls.length;
+        for (var i = 0; i < cntI; i++) {
+            if (typeof urls[i] === 'string') {
+                this.fetchConfig(urls[i]);
+            } else if (typeof urls[i] === 'object') {
+                this.configuring();
+                this.addConfig(urls[i]);
+                this.configured();
+            } else {
+                throw new SyntaxError('Invalid arg: ' + urls);
+            }
+        }
+    } else {
+        throw new SyntaxError('Invalid arg: ' + urls);
+    }
+};
+
+module.exports = Configuration;
+
+},{"./agent":49,"./cache-listener":50,"./cache.js":51,"./errors.js":53,"./logger":55,"./utils":56,"./utils.js":56,"events":7,"http2.js":83,"net":1,"object-keys":101,"util":47,"websocket-stream":143}],53:[function(require,module,exports){
+function InvalidStateError(message) {
+    this.name = 'InvalidStateError';
+    this.message = message;
+    this.stack = (new Error()).stack;
+}
+
+function TypeError(message) {
+    this.name = 'TypeError';
+    this.message = message;
+    this.stack = (new Error()).stack;
+}
+
+function DOMException(message) {    
+	this.name = 'DOMException';
+    this.message = message;
+    this.stack = (new Error()).stack;
+}
+
+module.exports = {
+	DOMException: DOMException,
+    InvalidStateError: InvalidStateError,
+    TypeError: TypeError
+};
+},{}],54:[function(require,module,exports){
+/* global XMLHttpRequest */
+(function (root) {
+
+	if (typeof XMLHttpRequest === 'undefined') {
+		throw new Error('XMLHttpRequest is not supported.');
+	}
+
+	if (typeof XMLHttpRequest.configuration === 'undefined') {
+
+	    var Configuration = require('./configuration.js'),
+	        enableXHROverH2 = require('./xhr.js').enableXHROverH2;
+
+	    enableXHROverH2(XMLHttpRequest, new Configuration({
+	    	debug: false // true='info' or (info|debug|trace)
+	    }));
+
+	    // To update debug level after injection:
+	    //- XMLHttpRequest.configuration.setDebugLevel('info');
+	    //- XMLHttpRequest.configuration.setDebugLevel('debug');
+	    //- XMLHttpRequest.configuration.setDebugLevel('trace');
+	}
+
+}(this));
+
+},{"./configuration.js":52,"./xhr.js":58}],55:[function(require,module,exports){
+/* global console */
+
+// Logger shim, used when no logger is provided by the user.
+function noop() {}
+var defaultLogger = {
+  fatal: noop,
+  error: noop,
+  warn : noop,
+  info : noop,
+  debug: noop,
+  trace: noop,
+  child: function() { return this; }
+};
+
+var consoleLogger = {
+  debugLevel: 'info', // 'info|debug|trace'
+  fatal: console.error,
+  error: console.error,
+  warn : console.warning || console.info,
+  info : function (data, ctx) {
+    var debug = console.debug || console.info;
+    if (
+      consoleLogger.debugLevel === 'info' || 
+        consoleLogger.debugLevel === 'trace' || 
+          consoleLogger.debugLevel === 'debug'
+    ) {
+      var args = (typeof ctx === 'string' ? [ctx, data] : arguments);
+      debug.apply(console, args);
+    } 
+  },
+  debug: function (data, ctx) {
+    var debug = console.debug || console.info;
+    if (
+      consoleLogger.debugLevel === 'trace' || 
+        consoleLogger.debugLevel === 'debug'
+    ) {
+      var args = (typeof ctx === 'string' ? [ctx, data] : arguments);
+      debug.apply(console, args);
+    } 
+  },
+  // Trace only
+  trace: function (data, ctx) {
+    var debug = console.debug || console.info;
+    if (consoleLogger.debugLevel === 'trace') {
+      consoleLogger.debug(data, ctx);
+    } 
+  },
+  // Trace only
+  child: function(msg) {
+    if (consoleLogger.debugLevel === 'trace') {
+      console.info(msg);
+    } 
+  	return this; 
+  }
+};
+
+module.exports = {
+	consoleLogger: consoleLogger,
+	defaultLogger: defaultLogger
+};
+},{}],56:[function(require,module,exports){
+var url = require('url'),
+    InvalidStateError = require('./errors').InvalidStateError;
+
+
+var resolvePort = function (u) {
+    u = (u instanceof url.constructor) ? u : url.parse(u);
+    var port = u.port;
+    if (port === null) {
+        if (u.protocol === "ws:" || u.protocol === "http:") {
+            port = 80;
+        } else {
+            port = 443;
+        }
+    }
+    return port;
+};
+/* global console */
+var parseUrl = function (href) {
+    var uri = (href instanceof url.constructor) ? href : url.parse(href);
+    uri.port = resolvePort(uri);
+
+
+    if (
+        uri.hostname === null &&
+            typeof window !== 'undefined'
+    ) {
+        uri.protocol = window.location.protocol;
+        uri.hostname = window.location.hostname;
+        uri.port = window.location.port;
+        uri.host = uri.hostname + ':' + uri.port;
+        uri.href = uri.protocol + "//" + uri.host + uri.href;
+    }
+
+    // Define uri.origin
+    uri.origin = uri.hostname + ":" + uri.port;
+ 
+    // Check if host match origin (example.com vs example.com:80)
+    if (uri.host !== uri.origin) {
+        // Fix href to include default port
+        uri.href = uri.href.replace(uri.protocol + "//" + uri.host, uri.protocol + "//" + uri.origin);
+        // Fix host to include default port
+        uri.host = uri.hostname + ":" + uri.port;
+    }
+
+    return uri;
+};
+
+var redefine = function (obj, prop, value) {
+
+    if (obj[prop]) {
+        // TODO, consider erasing scope/hiding (enumerable: false)
+        obj["_" + prop] = obj[prop];
+    }
+
+    Object.defineProperty(obj, prop, {
+        value: value,
+        enumerable: obj.propertyIsEnumerable(prop),
+        configurable: true
+    });
+};
+
+var defineGetter = function (obj, prop, getter) {
+
+    if (obj[prop]) {
+        // TODO, consider erasing scope/hiding (enumerable: false)
+        obj["_" + prop] = obj[prop];
+    }
+
+    Object.defineProperty(obj, prop, {
+        enumerable: true,
+        configurable: true,
+        get: getter
+    });
+};
+
+var definePrivate = function (obj, prop, value) {
+    Object.defineProperty(obj, prop, {
+        value: value,
+        enumerable: false,
+        configurable: true
+    });
+};
+
+var definePublic = function (obj, prop, value) {
+    Object.defineProperty(obj, prop, {
+        value: value,
+        enumerable: true,
+        configurable: true
+    });
+};
+
+var getOrigin = function (u) {
+    u = (u instanceof url.constructor) ? u : parseUrl(u);
+    return u.protocol + '//' + u.hostname + ':' + resolvePort(u);
+};
+
+var defaultPort = function (u, port) {
+    var parse = (u instanceof url.constructor) ? u : parseUrl(u);
+    if (!port) {
+        port = resolvePort(u);
+    }
+    u = (u instanceof url.constructor) ? u : parseUrl(u);
+    return u.protocol + '//' + u.hostname + ':' + port + parse.path;
+};
+
+// Import String.fromCodePoint polyfill
+require('string.fromcodepoint');
+
+var Utf8ArrayToStr = function (array) {
+    var c, char2, char3, char4,
+        out = "",
+        len = array.length,
+        i = 0;
+        
+    while (i < len) {
+        c = array[i++];
+        switch (c >> 4) {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+                // 0xxxxxxx
+                out += String.fromCharCode(c);
+                break;
+            case 12:
+            case 13:
+                // 110x xxxx   10xx xxxx
+                char2 = array[i++];
+                out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
+                break;
+            case 14:
+                // 1110 xxxx  10xx xxxx  10xx xxxx
+                char2 = array[i++];
+                char3 = array[i++];
+                out += String.fromCharCode(((c & 0x0F) << 12) |
+                    ((char2 & 0x3F) << 6) |
+                    ((char3 & 0x3F) << 0));
+                break;
+            case 15:
+            // 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
+            char2 = array[i++];
+            char3 = array[i++];
+            char4 = array[i++];
+            out += String.fromCodePoint(((c & 0x07) << 18) | ((char2 & 0x3F) << 12) | ((char3 & 0x3F) << 6) | (char4 & 0x3F));
+                break;
+        }
+    }
+
+    return out;
+};
+
+
+var mergeTypedArrays = function (a, b) {
+    // Checks for truthy values on both arrays
+    if(!a && !b) {
+        throw 'Please specify valid arguments for parameters a and b.';  
+    }
+
+    // Checks for truthy values or empty arrays on each argument
+    // to avoid the unnecessary construction of a new array and
+    // the type comparison
+    if(!b || b.length === 0) {
+        return a;
+    }
+
+    if(!a || a.length === 0) {
+        return b;
+    }
+
+    // Make sure that both typed arrays are of the same type
+    if(Object.prototype.toString.call(a) !== Object.prototype.toString.call(b)) {
+        throw 'The types of the two arguments passed for parameters a and b do not match.';
+    }
+
+    var c = new a.constructor(a.length + b.length);
+
+    // On NodeJS < v4 TypeArray.set is not working as expected, 
+    // starting NodeJS 6+ TypeArray.set.length is 1 and works properly.
+    if (c.set.length > 0) {
+        c.set(a, 0);
+        c.set(b, a.length);
+    // TypedArray.set relly on deprecated Buffer.set on NodeJS < 6 and producing bad merge
+    // Using forEach and Native Setter instead  
+    } else {
+        a.forEach(function (byte, index) { c[index] = byte; });
+        b.forEach(function (byte, index) { c[a.length + index] = byte; });
+    }
+    
+    return c;
+};
+
+var toArrayBuffer = function (buf) {
+    var ab = new ArrayBuffer(buf.length),
+        view = new Uint8Array(ab);
+
+    for (var i = 0; i < buf.length; ++i) {
+        view[i] = buf[i];
+    }
+
+    return ab;
+};
+
+var dataToType = function (data, type) {
+    // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/responseType
+    switch (type) {
+        case "":
+        case "text":
+            if (data instanceof Uint8Array) {
+                return Utf8ArrayToStr(data);
+            }
+            return data;
+        case "json":
+            return JSON.parse(data);
+        case "arraybuffer":
+            return toArrayBuffer(data);
+        case "blob":
+            if (typeof Blob !== 'undefined') {
+                return new Blob(data);
+            } else {
+                throw new InvalidStateError("Unsupported Response Type: " + type);
+            }
+            break;
+        case "document":
+            if (
+                typeof document !== 'undefined' &&
+                    typeof document.implementation !== 'undefined' &&
+                        typeof document.implementation.createDocument === 'function'
+            ) {
+                return document.implementation.createDocument('http://www.w3.org/1999/xhtml', 'html', data);
+            } else {
+                throw new InvalidStateError("Unsupported Response Type: " + type);
+            }
+            break;
+        default:
+            throw new InvalidStateError("Unexpected Response Type: " + type);
+    }
+};
+
+var caseInsensitiveEquals = function (str1, str2) {
+    return str1.toUpperCase() === str2.toUpperCase();
+};
+
+var serializeXhrBody = function (xhrInfo, body) {
+
+    // TODO implement better FormData serialization for websocket
+    // see: https://github.com/form-data/form-data
+
+    if (
+        typeof body === 'object' &&
+            typeof body.entries === 'function'
+    ) {
+        
+        // Display the key/value pairs
+        var bodyParts = [],
+            pairEntry, partPair,
+            iterator = body.entries();
+
+        while (
+            (pairEntry = iterator.next()) &&
+                pairEntry.done === false
+        ) {
+            partPair = pairEntry.value;
+
+            if (typeof partPair[1] !== "string") {
+                throw new Error("FormData limited support, only string supported");
+            }
+
+            bodyParts.push(encodeURIComponent(partPair[0]) + '=' + encodeURIComponent(partPair[1]));
+        }
+
+        body = bodyParts.join('&');
+        
+        // TODO may have to set xhrInfo content-type
+        //xhrInfo.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    }
+
+    return body;
+};
+
+module.exports = {
+    parseUrl: parseUrl,
+    redefine: redefine,
+    defineGetter: defineGetter,
+    definePrivate: definePrivate,
+    definePublic: definePublic,
+    resolvePort: resolvePort,
+    getOrigin: getOrigin,
+    dataToType: dataToType,
+    defaultPort: defaultPort,
+    serializeXhrBody: serializeXhrBody,
+    caseInsensitiveEquals: caseInsensitiveEquals,
+    mergeTypedArrays: mergeTypedArrays,
+    Utf8ArrayToStr: Utf8ArrayToStr
+};
+
+
+
+},{"./errors":53,"string.fromcodepoint":103,"url":43}],57:[function(require,module,exports){
+/**
+ * Weak hashmap from instance to properties, so internal properties aren't exposed
+ */
+var WeakMap = require("collections/weak-map");
+
+var XhrInfo = function () {
+    this.storage = new WeakMap();
+};
+
+XhrInfo.prototype.get = function (k, p, d) {
+    if (!this.storage.has(k)) {
+        return null;
+    } else {
+        return this.storage.get(k, d)[p];
+    }
+};
+
+XhrInfo.prototype.put = function (k, p, v) {
+    if (!this.storage.has(k)) {
+        // lazy init
+        this.storage.set(k, {});
+    }
+
+    this.storage.get(k)[p] = v;
+    return v;
+};
+
+XhrInfo.prototype.clean = function (k) {
+    this.storage.delete(k);
+};
+
+module.exports = XhrInfo;
+},{"collections/weak-map":81}],58:[function(require,module,exports){
+var http2 = require('http2.js'),
+    keys = require('object-keys'),
+    redefine = require('./utils').redefine,
+    defineGetter = require('./utils').defineGetter,
+    definePublic = require('./utils').definePublic,
+    definePrivate = require('./utils').definePrivate,
+    dataToType = require('./utils').dataToType,
+    defaultPort = require('./utils').defaultPort,
+    RequestInfo = require('./cache.js').RequestInfo,
+    parseUrl = require('./utils').parseUrl,
+    serializeXhrBody = require('./utils').serializeXhrBody,
+    getOrigin = require('./utils').getOrigin,
+    mergeTypedArrays = require('./utils').mergeTypedArrays,
+    InvalidStateError = require('./errors.js').InvalidStateError,
+    DOMException = require('./errors.js').DOMException,
+    XhrInfo = require('./xhr-info.js'),
+    Map = require("collections/map");
+
+var HTTP2_FORBIDDEN_HEADERS = ['accept-charset',
+    'accept-encoding',
+    'access-control-request-headers',
+    'access-control-request-method',
+    'connection',
+    'content-length',
+    'cookie',
+    'cookie2',
+    'date',
+    'dnt',
+    'expect',
+    'host',
+    'keep-alive',
+    'origin',
+    'referer',
+    'te',
+    'trailer',
+    'transfer-encoding',
+    'upgrade',
+    'via'];
+
+var HTTP_METHODS = [
+    'GET',
+    'OPTIONS',
+    'HEAD',
+    'POST',
+    'PUT',
+    'DELETE',
+    'TRACE',
+    'CONNECT'
+];
+
+// ProgressEvent
+function ProgressEvent(type) {
+    this.type = type;
+    this.target = null;
+}
+
+ProgressEvent.prototype.bubbles = false;
+
+ProgressEvent.prototype.cancelable = false;
+
+ProgressEvent.prototype.target = null;
+
+function enableXHROverH2(XMLHttpRequest, configuration) {
+
+    var xhrProto = XMLHttpRequest.prototype;
+    var xhrInfo = new XhrInfo();
+
+    definePublic(XMLHttpRequest, 'configuration', configuration);
+    definePublic(XMLHttpRequest, 'proxy', function (configs) {
+        return configuration.configure(configs);
+    });
+
+    function redefineProtoInfo(xhrProto, xhrInfo, property, initalValue) {
+        var originalProperty = "_" + property;
+        Object.defineProperty(xhrProto, originalProperty, Object.getOwnPropertyDescriptor(xhrProto, property));
+
+        Object.defineProperty(xhrProto, property, {
+            get: function () {
+                return xhrInfo.get(this, property) || this[originalProperty] || initalValue;
+            },
+            set: function (value) {
+                xhrInfo.put(this, property, value);
+            }
+        });
+    }
+
+    redefineProtoInfo(xhrProto, xhrInfo, "responseType", '');
+    redefineProtoInfo(xhrProto, xhrInfo, "readyState", 0);
+    redefineProtoInfo(xhrProto, xhrInfo, "timeout");
+    
+    redefine(xhrProto, 'open', function (method, url, async, username, password) {
+        // https://xhr.spec.whatwg.org/#the-open%28%29-method
+        method = method.toUpperCase();
+        if (HTTP_METHODS.indexOf(method.toUpperCase()) < 0) {
+            throw new SyntaxError("Invalid method: " + method);
+        }
+        // parse so we know it is valid
+        var parseurl = parseUrl(url);
+
+        if (async === undefined) {
+            async = true;
+        } else if (async === false) {
+            throw new SyntaxError("Synchronous is not supported");
+        }
+
+        xhrInfo.put(this, 'method', method);
+        xhrInfo.put(this, 'url', url);
+        xhrInfo.put(this, 'async', async);
+        xhrInfo.put(this, 'headers', new Map());
+
+        if (parseurl.host && username && password) {
+            xhrInfo.put(this, 'username', username);
+            xhrInfo.put(this, 'password', password);
+        }
+
+        var self = this;
+
+        /*
+         * We need to fire opened event here but native library might
+         * recall open, so we do this
+         */
+        if (self.onreadystatechange) {
+            var orscDelegate = self.onreadystatechange;
+            self.onreadystatechange = function () {
+                if (xhrInfo.get(this, 'lastreadystate') !== 1 || self.readyState !== 1) {
+                    xhrInfo.put(this, 'lastreadystate', self.readyState);
+                    orscDelegate();
+                }
+            };
+        }
+
+        // Reset ready state
+        xhrInfo.put(this, 'lastreadystate', XMLHttpRequest.OPENED);
+
+        this._changeState(XMLHttpRequest.OPENED);
+    });
+
+    redefine(xhrProto, 'setRequestHeader', function (name, value) {
+        if (this.readyState > 2) {
+            throw new InvalidStateError("Can not setRequestHeader on unopened XHR");
+        }
+        var lcname = name.toLowerCase();
+        if (HTTP2_FORBIDDEN_HEADERS.indexOf(lcname) > 0 || (lcname.lastIndexOf('sec-', 0) === 0 && lcname.replace('sec-', '').indexOf(lcname) > 0) || (lcname.lastIndexOf('proxy-', 0) === 0 && lcname.replace('proxy-', '').indexOf(lcname) > 0)) {
+            throw new SyntaxError("Forbidden Header: " + name);
+        }
+        // Each header field consists of a name followed by a colon (":") and the field value. Field names are
+        // case-insensitive.
+        // We standardize to lowercase for ease
+        xhrInfo.get(this, 'headers').set(lcname, value);
+    });
+
+    definePrivate(xhrProto, '_changeState', function (state, options) {
+        var self = this;
+
+        switch (state) {
+            case XMLHttpRequest.UNSENT:
+                break;
+            case XMLHttpRequest.OPENED:
+                break;
+            case XMLHttpRequest.HEADERS_RECEIVED:
+                var statusCode = options.response.statusCode;
+                defineGetter(this, 'status', function () {
+                    return statusCode;
+                });
+                var statusMessage = http2.STATUS_CODES[statusCode];
+                if (statusMessage) {
+                    this.statusText = statusMessage;
+                } else {
+                    configuration._log.warn('Unknown STATUS CODE: ' + statusCode);
+                }
+                break;
+            case XMLHttpRequest.LOADING:
+                this.__dispatchEvent(new ProgressEvent('progress'));
+                break;
+            case XMLHttpRequest.DONE:
+                redefine(this, 'getResponseHeader', function(header) {
+                    return options.response.headers[header.toLowerCase()];
+                });
+                redefine(this, 'getAllResponseHeaders', function() {
+                    var responseHeaders = options.response.headers;
+                    return keys(responseHeaders).filter(function (responseHeader) {
+                        return responseHeader !== 'toString';
+                    }).map(function (responseHeader) {
+                        return responseHeader + ': ' + responseHeaders[responseHeader];
+                    }).join("\n");
+                });
+                this.__dispatchEvent(new ProgressEvent('load'));
+                this.__dispatchEvent(new ProgressEvent('loadend'));
+                break;
+            default:
+                throw new InvalidStateError("Unexpected XHR _changeState: " + state);
+        }
+
+        switch (state) {
+            case XMLHttpRequest.UNSENT:
+            case XMLHttpRequest.OPENED:
+                break;
+            default:
+            this.readyState = state;
+            if (this.readyState !== state) {
+                throw new Error('Unable to update readyState ' +  this.readyState + ' vs ' + state);
+            }
+        }
+        this.__dispatchEvent(new ProgressEvent('readystatechange'));
+    });
+
+    // Expose response and responseText with cached dataToType
+    function defineXhrResponse(xhr, response) {
+
+        xhr._response = xhr._response || xhr.response;
+
+        defineGetter(xhr, 'response', function () {
+            // Render as responseType
+            var responseType = xhrInfo.get(xhr, 'responseType');
+            return dataToType(response.data, xhrInfo.get(xhr, 'responseType') || '');
+        });
+        
+        defineGetter(xhr, 'responseText', function () {
+
+            var responseType = xhrInfo.get(xhr, 'responseType') || '';
+            if (responseType !== '' && responseType !== 'text') {
+                throw new DOMException("Failed to read the 'responseText' property from 'XMLHttpRequest': The value is only accessible if the object's 'responseType' is '' or 'text' (was '" + responseType + "')");
+            }
+
+            // Force text rendering
+            return dataToType(response.data, 'text');
+        });
+    }
+
+    definePrivate(xhrProto, '_sendViaHttp2', function (destination, body, proxyTransportUrl) {
+
+        var self = this,
+            cache = configuration.cache,
+            requestUrl = getOrigin(destination.href) + destination.path,
+            requestMethod = xhrInfo.get(self, 'method'),
+            requestHeaders = xhrInfo.get(self, 'headers'),
+            requestInfo = new RequestInfo(requestMethod, requestUrl, requestHeaders);
+        
+        // TODO reset response
+        // TODO change getCache to readonly property
+        
+        cache.match(requestInfo).then(function (response) {
+            if (response) {
+
+                if (configuration.debug) {
+                    configuration._log.debug("Using cache result for XHR(" + destination.href + ")");
+                }
+
+                // Export cached response
+                defineXhrResponse(self, response);
+
+                self.__dispatchEvent(new ProgressEvent('loadstart'));
+                self._changeState(XMLHttpRequest.HEADERS_RECEIVED, {'response': response});
+                self._changeState(XMLHttpRequest.LOADING, {'response': response});
+                self._changeState(XMLHttpRequest.DONE, {'response': response});
+
+            } else {
+
+                // Need to make the request your self
+                if (body) {
+
+                    // https://xhr.spec.whatwg.org/#the-send%28%29-method
+                    if (
+                        typeof HTMLElement !== 'undefined' &&
+                            body instanceof HTMLElement
+                    ) {
+                        if (!requestHeaders.has('content-encoding')) {
+                            requestHeaders.set('content-encoding', 'UTF-8');
+                        }
+
+                        if (!requestHeaders.has('content-type')) {
+                            requestHeaders.set('content-type', 'text/html; charset=utf-8');
+                        }
+                    } else {
+                        // Set default encoding
+                        // TODO use document encoding
+                        if (!requestHeaders.has('content-encoding')) {
+                            requestHeaders.set('content-encoding', 'UTF-8');
+                        }
+                    }
+
+                    // only other option in spec is a String
+                    // inject content-length TODO remove this as should not be required
+                    requestHeaders.set('content-length', body.toString().length);
+                }
+
+                // TODO use isRevalidating and store request in cache.revalidate 
+                // cache.isRevalidating(requestInfo)
+
+                // Naive Timeout implementation
+                var timeout = xhrInfo.get(self, 'timeout'),
+                    timeoutTimer = xhrInfo.get(self, 'timeoutTimer');
+
+                if (timeout) {
+                    var otoDelegate = self.ontimeout;
+                    self.ontimeout = function () {
+
+                        // Clear requestInfo revalidate state
+                        cache.validated(requestInfo);
+
+                        // TODO abort
+                        xhrInfo.put(self, 'timeoutOccured', true);
+                        otoDelegate();
+                    };
+
+                    clearTimeout(timeoutTimer);
+                    xhrInfo.put(self, 'timeoutOccured', false);
+
+                    timeoutTimer = setTimeout(self.ontimeout, timeout);
+                    xhrInfo.put(self, 'timeoutTimer', timeoutTimer);
+                }
+
+                var transport = configuration.getTransport(proxyTransportUrl);
+
+                var request = http2.raw.request({
+                    agent: configuration.agent,
+                    // protocol has already been matched by getting transport url
+                    // protocol: destination.protocol,
+                    hostname: destination.hostname,
+                    port: destination.port,
+                    path: destination.path,
+                    method: requestMethod,
+                    headers: requestHeaders.toObject(),
+                    // auth: self.__headers // TODO AUTH
+                    // TODO, change transport to createConnection
+                    transport: transport,
+                    transportUrl: proxyTransportUrl
+                    // TODO timeout if syncronization set
+                    // timeout: self.__timeout
+                }, function (response) {
+
+                    var timeoutOccured = xhrInfo.get(self, 'timeoutOccured'),
+                        timeoutTimer = xhrInfo.get(self, 'timeoutTimer');
+
+                    // Naive Timeout implementation
+                    if (timeoutOccured) {
+                        return;
+                    }
+                    
+                    clearTimeout(timeoutTimer);
+
+                    // Export live response
+                    defineXhrResponse(self, response);
+
+                    self._changeState(XMLHttpRequest.HEADERS_RECEIVED, {'response': response});
+
+                    response.on('data', function (data) {
+                        response.data = mergeTypedArrays(response.data, data);
+                        self._changeState(XMLHttpRequest.LOADING, {'response': response});
+                    });
+
+                    response.on('finish', function () {
+
+                        if (configuration.debug) {
+                            configuration._log.debug("Got response for proxied XHR(" + destination.href + ")");
+                        }
+
+                        cache.put(requestInfo, response).then(function () {
+                            configuration._log.debug("Cache updated for proxied XHR(" + destination.href + ")");
+                        }).catch(function (cacheError) {
+                            configuration._log.debug("Cache error for proxied XHR(" + destination.href + "):" + cacheError.message);                            
+                        }).then(function () {
+                            self._changeState(XMLHttpRequest.DONE, {
+                                'response': response
+                            });
+
+                            // Clear requestInfo revalidate state
+                            cache.validated(requestInfo);  
+                        });
+                    });
+                });
+
+                // TODO Why ?
+                request.on('error', function (/*e*/) {
+
+                    // Clear requestInfo revalidate state
+                    cache.validated(requestInfo);
+
+                    // TODO, handle error
+                    //self._changeState('error');
+
+                    self.__dispatchEvent(new ProgressEvent('error'));
+                });
+
+                // add to cache when receive pushRequest
+                request.on('push', function(respo) {
+                    configuration.onPush(respo);
+                });
+                
+                request.end(body || null);
+
+                // Set requestInfo revalidate state
+                // TODO pass request for future dedup pending requestInfo
+                cache.revalidate(requestInfo);
+
+                self.__dispatchEvent(new ProgressEvent('loadstart'));
+            }
+        });
+    });
+
+    redefine(xhrProto, 'send', function (body) {
+        
+        var self = this,
+            url = xhrInfo.get(self, 'url');
+
+        if (configuration.isConfiguring()) {
+
+            if (configuration.debug) {
+                configuration._log.debug("Delaying XHR(" + url + ") until configuration completes");
+            }
+
+            configuration.once('completed', function () {
+                self.send(body);
+            });
+
+        } else {
+
+            var destination = parseUrl(url),
+                proxyTransportUrl = configuration.getTransportUrl(destination);
+
+            if (proxyTransportUrl) {
+
+                if (configuration.debug) {
+                    configuration._log.debug("Proxying XHR(" + url + ") via " + proxyTransportUrl);
+                }
+
+                // Fix support for FormData if not null and object
+                if (body && typeof body === "object") {
+                    body = serializeXhrBody(xhrInfo, body);   
+                }
+                
+                self._sendViaHttp2(destination, body, proxyTransportUrl);
+
+            } else {
+
+                if (configuration.debug) {
+                    configuration._log.debug("Sending XHR(" + url + ") via native stack");
+                }
+
+                self._open(xhrInfo.get(self, 'method'),
+                    url,
+                    xhrInfo.get(self, 'async'),
+                    xhrInfo.get(self, 'username'),
+                    xhrInfo.get(self, 'password')
+                );
+
+                // Restore responseType
+                self._responseType = xhrInfo.get(self, 'responseType') || '';
+
+                // Reset Headers
+                var requestHeaders = xhrInfo.get(self, 'headers');
+                requestHeaders.forEach(function (value, key) {  
+                    self._setRequestHeader(key, value);                  
+                }, self);           
+
+                // Fix support for http2.js only if FormData is not defined and not null
+                if (body && typeof FormData === "undefined") {
+                    body = serializeXhrBody(xhrInfo, body);   
+                }
+
+                self._send(body);
+            }
+        }
+    });
+
+    redefine(xhrProto, 'addEventListener', function (eventType, listener) {
+        if (!this.__listeners) {
+            this.__listeners = {};
+            this.__listenedToEvents = new Set();
+        }
+        eventType = eventType.toLowerCase();
+        if (!this.__listeners[eventType]) {
+            this.__listeners[eventType] = [];
+        }
+        this.__listeners[eventType].push(listener);
+        this.__listenedToEvents.add(eventType);
+        // TODO try catch addEventListener?? for browsers that don't support it
+        this._addEventListener(eventType, listener);
+        return void 0;
+    });
+
+    redefine(xhrProto, 'removeEventListener', function (eventType, listener) {
+        var index;
+        eventType = eventType.toLowerCase();
+        if (this.__listeners[eventType]) {
+            index = this.__listeners[eventType].indexOf(listener);
+            if (index !== -1) {
+                this.__listeners[eventType].splice(index, 1);
+            }
+        }
+        // TODO try catch _removeEventListener?? for browsers that don't support it
+        this._removeEventListener(eventType, listener);
+        return void 0;
+    });
+
+    definePrivate(xhrProto, '__dispatchEvent', function (event) {
+        var eventType, j, len, listener, listeners;
+        event.currentTarget = event.target = this;
+        eventType = event.type;
+        if (this.__listeners) {
+            if ((listeners = this.__listeners[eventType])) {
+                for (j = 0, len = listeners.length; j < len; j++) {
+                    listener = listeners[j];
+                    listener.call(this, event);
+                }
+            }
+        }
+        if ((listener = this["on" + eventType])) {
+            listener.call(this, event);
+        }
+        return void 0;
+
+    });
+
+    /*
+     * Maybe in the future this will be made public, but it is needed for testing now
+     * TODO Work in Progress (Design needed)
+     */
+    definePrivate(xhrProto, 'subscribe', function (cb) {
+        // assert this._state ===  XMLHttpRequest.OPENED
+        var url = defaultPort(xhrInfo.get(this, 'url'));
+        // once? or do we have API for unsubscribe?
+        // https://nodejs.org/api/events.html#events_emitter_removelistener_eventname_listener
+        var subscription = function (requestUrl) {
+            // TODO should we go through xhr lifecycle again ??
+            if (requestUrl === url) {
+                cb();
+            }
+        };
+        configuration.cacheListener.on('cached', subscription);
+
+        // TODO: Will only works once, not with multiple subscription
+        definePrivate(xhrProto, 'unsubscribe', function () {
+            configuration.cacheListener.removeListener('cached', subscription);
+        });
+    });
+}
+
+module.exports = {
+    enableXHROverH2: enableXHROverH2
+};
+
+},{"./cache.js":51,"./errors.js":53,"./utils":56,"./xhr-info.js":57,"collections/map":73,"http2.js":83,"object-keys":101}],59:[function(require,module,exports){
 "use strict";
 
 var Shim = require("./shim");
@@ -10728,7 +10750,7 @@ Dict.prototype.toJSON = function () {
     return this.toObject();
 };
 
-},{"./generic-collection":64,"./generic-map":65,"./shim":78}],59:[function(require,module,exports){
+},{"./generic-collection":65,"./generic-map":66,"./shim":79}],60:[function(require,module,exports){
 "use strict";
 
 var Shim = require("./shim");
@@ -10963,7 +10985,7 @@ FastSet.prototype.logNode = function (node, write) {
     }
 };
 
-},{"./_dict":58,"./_list":60,"./generic-collection":64,"./generic-set":67,"./shim":78,"./tree-log":79}],60:[function(require,module,exports){
+},{"./_dict":59,"./_list":61,"./generic-collection":65,"./generic-set":68,"./shim":79,"./tree-log":80}],61:[function(require,module,exports){
 "use strict";
 
 module.exports = List;
@@ -11359,7 +11381,7 @@ Node.prototype.addAfter = function (node) {
     node.prev = this;
 };
 
-},{"./generic-collection":64,"./generic-order":66,"./shim":78}],61:[function(require,module,exports){
+},{"./generic-collection":65,"./generic-order":67,"./shim":79}],62:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -11673,7 +11695,7 @@ if((global.Map !== void 0) && (typeof global.Set.prototype.values === "function"
     }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_set":62,"./generic-collection":64,"./generic-map":65,"./shim":78}],62:[function(require,module,exports){
+},{"./_set":63,"./generic-collection":65,"./generic-map":66,"./shim":79}],63:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -11957,7 +11979,7 @@ else {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_fast-set":59,"./_list":60,"./generic-collection":64,"./generic-set":67,"./iterator":68,"./shim":78}],63:[function(require,module,exports){
+},{"./_fast-set":60,"./_list":61,"./generic-collection":65,"./generic-set":68,"./iterator":69,"./shim":79}],64:[function(require,module,exports){
 "use strict";
 
 var Dict = require("./_dict");
@@ -11970,7 +11992,7 @@ module.exports = Dict;
 Object.addEach(Dict.prototype, PropertyChanges.prototype);
 Object.addEach(Dict.prototype, MapChanges.prototype);
 
-},{"./_dict":58,"./listen/map-changes":70,"./listen/property-changes":71}],64:[function(require,module,exports){
+},{"./_dict":59,"./listen/map-changes":71,"./listen/property-changes":72}],65:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -12264,7 +12286,7 @@ Object.defineProperty(GenericCollection.prototype,"size",GenericCollection._size
 require("./shim-array");
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./shim-array":74}],65:[function(require,module,exports){
+},{"./shim-array":75}],66:[function(require,module,exports){
 "use strict";
 
 var Object = require("./shim-object");
@@ -12477,7 +12499,7 @@ Item.prototype.compare = function (that) {
     return Object.compare(this.key, that.key);
 };
 
-},{"./iterator":68,"./shim-object":76}],66:[function(require,module,exports){
+},{"./iterator":69,"./shim-object":77}],67:[function(require,module,exports){
 
 var Object = require("./shim-object");
 
@@ -12537,7 +12559,7 @@ GenericOrder.prototype.toJSON = function () {
     return this.toArray();
 };
 
-},{"./shim-object":76}],67:[function(require,module,exports){
+},{"./shim-object":77}],68:[function(require,module,exports){
 
 module.exports = GenericSet;
 function GenericSet() {
@@ -12628,7 +12650,7 @@ GenericSet.prototype.entriesArray = function() {
     return this.map(_entriesArrayFunction);
 }
 
-},{}],68:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 "use strict";
 
 module.exports = Iterator;
@@ -13004,7 +13026,7 @@ Iterator.repeat = function (value, times) {
     });
 };
 
-},{"./generic-collection":64,"./shim-object":76}],69:[function(require,module,exports){
+},{"./generic-collection":65,"./shim-object":77}],70:[function(require,module,exports){
 /*
     Copyright (c) 2016, Montage Studio Inc. All Rights Reserved.
     3-Clause BSD License
@@ -13147,7 +13169,7 @@ WillChangeListenersRecord.prototype = new ChangeListenersRecord();
 WillChangeListenersRecord.prototype.constructor = WillChangeListenersRecord;
 WillChangeListenersRecord.prototype.genericHandlerMethodName = "handlePropertyWillChange";
 
-},{"../_map":61}],70:[function(require,module,exports){
+},{"../_map":62}],71:[function(require,module,exports){
 "use strict";
 
 var WeakMap = require("../weak-map"),
@@ -13410,7 +13432,7 @@ MapChanges.prototype.dispatchBeforeMapChange = function (key, value) {
     return this.dispatchMapChange(key, value, true);
 };
 
-},{"../_map":61,"../weak-map":80,"./change-descriptor":69}],71:[function(require,module,exports){
+},{"../_map":62,"../weak-map":81,"./change-descriptor":70}],72:[function(require,module,exports){
 /*
     Based in part on observable arrays from Motorola Mobility’s Montage
     Copyright (c) 2012, Motorola Mobility LLC. All Rights Reserved.
@@ -13893,7 +13915,7 @@ PropertyChanges.makePropertyObservable = function (object, key) {
     }
 };
 
-},{"../_map":61,"../shim":78,"../weak-map":80,"./change-descriptor":69}],72:[function(require,module,exports){
+},{"../_map":62,"../shim":79,"../weak-map":81,"./change-descriptor":70}],73:[function(require,module,exports){
 (function (global){
 "use strict";
 
@@ -13913,7 +13935,7 @@ else {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./_map":61,"./listen/map-changes":70,"./listen/property-changes":71}],73:[function(require,module,exports){
+},{"./_map":62,"./listen/map-changes":71,"./listen/property-changes":72}],74:[function(require,module,exports){
 // Copyright (C) 2011 Google Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14600,7 +14622,7 @@ else {
   }
 })();
 
-},{}],74:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 "use strict";
 
 /*
@@ -15058,7 +15080,7 @@ ArrayIterator.prototype.next = function () {
     return this._iterationObject;
 };
 
-},{"./generic-collection":64,"./generic-order":66,"./shim-function":75,"./weak-map":80}],75:[function(require,module,exports){
+},{"./generic-collection":65,"./generic-order":67,"./shim-function":76,"./weak-map":81}],76:[function(require,module,exports){
 
 module.exports = Function;
 
@@ -15119,7 +15141,7 @@ Function.get = function (key) {
 };
 
 
-},{}],76:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 "use strict";
 
 var WeakMap = require("./weak-map");
@@ -15720,7 +15742,7 @@ Object.clear = function (object) {
     return object;
 };
 
-},{"./weak-map":80}],77:[function(require,module,exports){
+},{"./weak-map":81}],78:[function(require,module,exports){
 
 /**
     accepts a string; returns the string with regex metacharacters escaped.
@@ -15736,7 +15758,7 @@ if (!RegExp.escape) {
 }
 
 
-},{}],78:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 
 var Array = require("./shim-array");
 var Object = require("./shim-object");
@@ -15744,7 +15766,7 @@ var Function = require("./shim-function");
 var RegExp = require("./shim-regexp");
 
 
-},{"./shim-array":74,"./shim-function":75,"./shim-object":76,"./shim-regexp":77}],79:[function(require,module,exports){
+},{"./shim-array":75,"./shim-function":76,"./shim-object":77,"./shim-regexp":78}],80:[function(require,module,exports){
 "use strict";
 
 module.exports = TreeLog;
@@ -15786,11 +15808,11 @@ TreeLog.unicodeSharp = {
 };
 
 
-},{}],80:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 
 module.exports = (typeof WeakMap !== 'undefined') ? WeakMap : require("weak-map");
 
-},{"weak-map":73}],81:[function(require,module,exports){
+},{"weak-map":74}],82:[function(require,module,exports){
 (function (Buffer){
 // Public API
 // ==========
@@ -17177,7 +17199,7 @@ IncomingPromise.prototype.setPriority = function setPriority(priority) {
 IncomingPromise.prototype._onPromise = OutgoingRequest.prototype._onPromise;
 
 }).call(this,require("buffer").Buffer)
-},{"./protocol":88,"buffer":14,"events":17,"https":18,"net":11,"object.assign":92,"stream":45,"url":52,"util":56}],82:[function(require,module,exports){
+},{"./protocol":89,"buffer":4,"events":7,"https":8,"net":1,"object.assign":93,"stream":34,"url":43,"util":47}],83:[function(require,module,exports){
 // [node-http2][homepage] is an [HTTP/2][http2] implementation for [node.js][node].
 //
 // The core of the protocol is implemented in the protocol sub-directory. This directory provides
@@ -17231,7 +17253,7 @@ module.exports   = require('./http');
 
 */
 
-},{"./http":81}],83:[function(require,module,exports){
+},{"./http":82}],84:[function(require,module,exports){
 (function (Buffer){
 // The implementation of the [HTTP/2 Header Compression][http2-compression] spec is separated from
 // the 'integration' part which handles HEADERS and PUSH_PROMISE frames. The compression itself is
@@ -18601,7 +18623,7 @@ function trim(string) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"assert":12,"buffer":14,"stream":45,"util":56}],84:[function(require,module,exports){
+},{"assert":2,"buffer":4,"stream":34,"util":47}],85:[function(require,module,exports){
 (function (global,Buffer){
 var assert = require('assert');
 
@@ -19257,7 +19279,7 @@ Connection.prototype._setInitialStreamWindowSize = function _setInitialStreamWin
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./flow":86,"./stream":89,"assert":12,"buffer":14,"setimmediate":99}],85:[function(require,module,exports){
+},{"./flow":87,"./stream":90,"assert":2,"buffer":4,"setimmediate":100}],86:[function(require,module,exports){
 (function (global,Buffer){
 var assert = require('assert');
 
@@ -19525,7 +19547,7 @@ exports.serializers.e = function(endpoint) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./compressor":83,"./connection":84,"./framer":87,"assert":12,"buffer":14,"setimmediate":99,"stream":45}],86:[function(require,module,exports){
+},{"./compressor":84,"./connection":85,"./framer":88,"assert":2,"buffer":4,"setimmediate":100,"stream":34}],87:[function(require,module,exports){
 (function (global){
 var assert = require('assert');
 
@@ -19894,7 +19916,7 @@ function bufferTail (buffer) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"assert":12,"setimmediate":99,"stream":45}],87:[function(require,module,exports){
+},{"assert":2,"setimmediate":100,"stream":34}],88:[function(require,module,exports){
 (function (process,Buffer){
 // The framer consists of two [Transform Stream][1] subclasses that operate in [object mode][2]:
 // the Serializer and the Deserializer
@@ -21071,7 +21093,7 @@ exports.serializers.data = function(data) {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":21,"assert":12,"buffer":14,"object-keys":100,"stream":45}],88:[function(require,module,exports){
+},{"_process":11,"assert":2,"buffer":4,"object-keys":101,"stream":34}],89:[function(require,module,exports){
 // This is an implementation of the [HTTP/2][http2]
 // framing layer for [node.js][node].
 //
@@ -21170,7 +21192,7 @@ try {
 
 */
 
-},{"./endpoint":85}],89:[function(require,module,exports){
+},{"./endpoint":86}],90:[function(require,module,exports){
 (function (Buffer){
 var assert = require('assert');
 
@@ -21834,7 +21856,7 @@ exports.serializers.s = function(stream) {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"./flow":86,"assert":12,"buffer":14,"stream":45}],90:[function(require,module,exports){
+},{"./flow":87,"assert":2,"buffer":4,"stream":34}],91:[function(require,module,exports){
 'use strict';
 
 var keys = require('object-keys');
@@ -21877,7 +21899,7 @@ module.exports = function hasSymbols() {
 	return true;
 };
 
-},{"object-keys":100}],91:[function(require,module,exports){
+},{"object-keys":101}],92:[function(require,module,exports){
 'use strict';
 
 // modified from https://github.com/es-shims/es6-shim
@@ -21920,7 +21942,7 @@ module.exports = function assign(target, source1) {
 	return objTarget;
 };
 
-},{"./hasSymbols":90,"function-bind":96,"object-keys":100}],92:[function(require,module,exports){
+},{"./hasSymbols":91,"function-bind":97,"object-keys":101}],93:[function(require,module,exports){
 'use strict';
 
 var defineProperties = require('define-properties');
@@ -21939,7 +21961,7 @@ defineProperties(polyfill, {
 
 module.exports = polyfill;
 
-},{"./implementation":91,"./polyfill":97,"./shim":98,"define-properties":93}],93:[function(require,module,exports){
+},{"./implementation":92,"./polyfill":98,"./shim":99,"define-properties":94}],94:[function(require,module,exports){
 'use strict';
 
 var keys = require('object-keys');
@@ -21997,7 +22019,7 @@ defineProperties.supportsDescriptors = !!supportsDescriptors;
 
 module.exports = defineProperties;
 
-},{"foreach":94,"object-keys":100}],94:[function(require,module,exports){
+},{"foreach":95,"object-keys":101}],95:[function(require,module,exports){
 
 var hasOwn = Object.prototype.hasOwnProperty;
 var toString = Object.prototype.toString;
@@ -22021,7 +22043,7 @@ module.exports = function forEach (obj, fn, ctx) {
 };
 
 
-},{}],95:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 'use strict';
 
 /* eslint no-invalid-this: 1 */
@@ -22075,14 +22097,14 @@ module.exports = function bind(that) {
     return bound;
 };
 
-},{}],96:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
 
 module.exports = Function.prototype.bind || implementation;
 
-},{"./implementation":95}],97:[function(require,module,exports){
+},{"./implementation":96}],98:[function(require,module,exports){
 'use strict';
 
 var implementation = require('./implementation');
@@ -22135,7 +22157,7 @@ module.exports = function getPolyfill() {
 	return Object.assign;
 };
 
-},{"./implementation":91}],98:[function(require,module,exports){
+},{"./implementation":92}],99:[function(require,module,exports){
 'use strict';
 
 var define = require('define-properties');
@@ -22151,7 +22173,7 @@ module.exports = function shimAssign() {
 	return polyfill;
 };
 
-},{"./polyfill":97,"define-properties":93}],99:[function(require,module,exports){
+},{"./polyfill":98,"define-properties":94}],100:[function(require,module,exports){
 (function (process,global){
 (function (global, undefined) {
     "use strict";
@@ -22341,7 +22363,7 @@ module.exports = function shimAssign() {
 }(typeof self === "undefined" ? typeof global === "undefined" ? this : global : self));
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":21}],100:[function(require,module,exports){
+},{"_process":11}],101:[function(require,module,exports){
 'use strict';
 
 // modified from https://github.com/es-shims/es5-shim
@@ -22483,7 +22505,7 @@ keysShim.shim = function shimObjectKeys() {
 
 module.exports = keysShim;
 
-},{"./isArguments":101}],101:[function(require,module,exports){
+},{"./isArguments":102}],102:[function(require,module,exports){
 'use strict';
 
 var toStr = Object.prototype.toString;
@@ -22502,7 +22524,71 @@ module.exports = function isArguments(value) {
 	return isArgs;
 };
 
-},{}],102:[function(require,module,exports){
+},{}],103:[function(require,module,exports){
+/*! http://mths.be/fromcodepoint v0.2.1 by @mathias */
+if (!String.fromCodePoint) {
+	(function() {
+		var defineProperty = (function() {
+			// IE 8 only supports `Object.defineProperty` on DOM elements
+			try {
+				var object = {};
+				var $defineProperty = Object.defineProperty;
+				var result = $defineProperty(object, object, object) && $defineProperty;
+			} catch(error) {}
+			return result;
+		}());
+		var stringFromCharCode = String.fromCharCode;
+		var floor = Math.floor;
+		var fromCodePoint = function(_) {
+			var MAX_SIZE = 0x4000;
+			var codeUnits = [];
+			var highSurrogate;
+			var lowSurrogate;
+			var index = -1;
+			var length = arguments.length;
+			if (!length) {
+				return '';
+			}
+			var result = '';
+			while (++index < length) {
+				var codePoint = Number(arguments[index]);
+				if (
+					!isFinite(codePoint) || // `NaN`, `+Infinity`, or `-Infinity`
+					codePoint < 0 || // not a valid Unicode code point
+					codePoint > 0x10FFFF || // not a valid Unicode code point
+					floor(codePoint) != codePoint // not an integer
+				) {
+					throw RangeError('Invalid code point: ' + codePoint);
+				}
+				if (codePoint <= 0xFFFF) { // BMP code point
+					codeUnits.push(codePoint);
+				} else { // Astral code point; split in surrogate halves
+					// http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+					codePoint -= 0x10000;
+					highSurrogate = (codePoint >> 10) + 0xD800;
+					lowSurrogate = (codePoint % 0x400) + 0xDC00;
+					codeUnits.push(highSurrogate, lowSurrogate);
+				}
+				if (index + 1 == length || codeUnits.length > MAX_SIZE) {
+					result += stringFromCharCode.apply(null, codeUnits);
+					codeUnits.length = 0;
+				}
+			}
+			return result;
+		};
+		if (defineProperty) {
+			defineProperty(String, 'fromCodePoint', {
+				'value': fromCodePoint,
+				'configurable': true,
+				'writable': true
+			});
+		} else {
+			String.fromCodePoint = fromCodePoint;
+		}
+	}());
+}
+
+},{}],104:[function(require,module,exports){
 (function (process,Buffer){
 var stream = require('readable-stream')
 var eos = require('end-of-stream')
@@ -22734,7 +22820,7 @@ Duplexify.prototype.end = function(data, enc, cb) {
 module.exports = Duplexify
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":21,"buffer":14,"end-of-stream":103,"inherits":122,"readable-stream":120,"stream-shift":121}],103:[function(require,module,exports){
+},{"_process":11,"buffer":4,"end-of-stream":105,"inherits":124,"readable-stream":122,"stream-shift":123}],105:[function(require,module,exports){
 var once = require('once');
 
 var noop = function() {};
@@ -22819,7 +22905,7 @@ var eos = function(stream, opts, callback) {
 
 module.exports = eos;
 
-},{"once":105}],104:[function(require,module,exports){
+},{"once":107}],106:[function(require,module,exports){
 // Returns a wrapper function that returns a wrapped callback
 // The wrapper function should do some stuff, and return a
 // presumably different callback function.
@@ -22854,7 +22940,7 @@ function wrappy (fn, cb) {
   }
 }
 
-},{}],105:[function(require,module,exports){
+},{}],107:[function(require,module,exports){
 var wrappy = require('wrappy')
 module.exports = wrappy(once)
 module.exports.strict = wrappy(onceStrict)
@@ -22898,23 +22984,23 @@ function onceStrict (fn) {
   return f
 }
 
-},{"wrappy":104}],106:[function(require,module,exports){
-arguments[4][27][0].apply(exports,arguments)
-},{"./_stream_readable":108,"./_stream_writable":110,"core-util-is":114,"dup":27,"inherits":122,"process-nextick-args":116}],107:[function(require,module,exports){
-arguments[4][28][0].apply(exports,arguments)
-},{"./_stream_transform":109,"core-util-is":114,"dup":28,"inherits":122}],108:[function(require,module,exports){
-arguments[4][29][0].apply(exports,arguments)
-},{"./_stream_duplex":106,"./internal/streams/BufferList":111,"./internal/streams/destroy":112,"./internal/streams/stream":113,"_process":21,"core-util-is":114,"dup":29,"events":17,"inherits":122,"isarray":115,"process-nextick-args":116,"safe-buffer":117,"string_decoder/":118,"util":13}],109:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"./_stream_duplex":106,"core-util-is":114,"dup":30,"inherits":122}],110:[function(require,module,exports){
-arguments[4][31][0].apply(exports,arguments)
-},{"./_stream_duplex":106,"./internal/streams/destroy":112,"./internal/streams/stream":113,"_process":21,"core-util-is":114,"dup":31,"inherits":122,"process-nextick-args":116,"safe-buffer":117,"util-deprecate":119}],111:[function(require,module,exports){
-arguments[4][32][0].apply(exports,arguments)
-},{"dup":32,"safe-buffer":117}],112:[function(require,module,exports){
-arguments[4][33][0].apply(exports,arguments)
-},{"dup":33,"process-nextick-args":116}],113:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34,"events":17}],114:[function(require,module,exports){
+},{"wrappy":106}],108:[function(require,module,exports){
+arguments[4][17][0].apply(exports,arguments)
+},{"./_stream_readable":110,"./_stream_writable":112,"core-util-is":116,"dup":17,"inherits":124,"process-nextick-args":118}],109:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"./_stream_transform":111,"core-util-is":116,"dup":18,"inherits":124}],110:[function(require,module,exports){
+arguments[4][19][0].apply(exports,arguments)
+},{"./_stream_duplex":108,"./internal/streams/BufferList":113,"./internal/streams/destroy":114,"./internal/streams/stream":115,"_process":11,"core-util-is":116,"dup":19,"events":7,"inherits":124,"isarray":117,"process-nextick-args":118,"safe-buffer":119,"string_decoder/":120,"util":3}],111:[function(require,module,exports){
+arguments[4][20][0].apply(exports,arguments)
+},{"./_stream_duplex":108,"core-util-is":116,"dup":20,"inherits":124}],112:[function(require,module,exports){
+arguments[4][21][0].apply(exports,arguments)
+},{"./_stream_duplex":108,"./internal/streams/destroy":114,"./internal/streams/stream":115,"_process":11,"core-util-is":116,"dup":21,"inherits":124,"process-nextick-args":118,"safe-buffer":119,"util-deprecate":121}],113:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22,"safe-buffer":119}],114:[function(require,module,exports){
+arguments[4][23][0].apply(exports,arguments)
+},{"dup":23,"process-nextick-args":118}],115:[function(require,module,exports){
+arguments[4][24][0].apply(exports,arguments)
+},{"dup":24,"events":7}],116:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -23024,20 +23110,20 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 
-}).call(this,{"isBuffer":require("../../../../../../../../browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
-},{"../../../../../../../../browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":20}],115:[function(require,module,exports){
-arguments[4][36][0].apply(exports,arguments)
-},{"dup":36}],116:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"_process":21,"dup":37}],117:[function(require,module,exports){
-arguments[4][38][0].apply(exports,arguments)
-},{"buffer":14,"dup":38}],118:[function(require,module,exports){
-arguments[4][39][0].apply(exports,arguments)
-},{"dup":39,"safe-buffer":117}],119:[function(require,module,exports){
-arguments[4][40][0].apply(exports,arguments)
-},{"dup":40}],120:[function(require,module,exports){
-arguments[4][42][0].apply(exports,arguments)
-},{"./lib/_stream_duplex.js":106,"./lib/_stream_passthrough.js":107,"./lib/_stream_readable.js":108,"./lib/_stream_transform.js":109,"./lib/_stream_writable.js":110,"dup":42}],121:[function(require,module,exports){
+}).call(this,{"isBuffer":require("../../../../../../../../../../../../../.nvm/versions/node/v4.8.6/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
+},{"../../../../../../../../../../../../../.nvm/versions/node/v4.8.6/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":10}],117:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],118:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"_process":11,"dup":27}],119:[function(require,module,exports){
+arguments[4][28][0].apply(exports,arguments)
+},{"buffer":4,"dup":28}],120:[function(require,module,exports){
+arguments[4][41][0].apply(exports,arguments)
+},{"dup":41,"safe-buffer":119}],121:[function(require,module,exports){
+arguments[4][29][0].apply(exports,arguments)
+},{"dup":29}],122:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"./lib/_stream_duplex.js":108,"./lib/_stream_passthrough.js":109,"./lib/_stream_readable.js":110,"./lib/_stream_transform.js":111,"./lib/_stream_writable.js":112,"dup":31}],123:[function(require,module,exports){
 module.exports = shift
 
 function shift (stream) {
@@ -23059,41 +23145,41 @@ function getStateLength (state) {
   return state.length
 }
 
-},{}],122:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],125:[function(require,module,exports){
+arguments[4][17][0].apply(exports,arguments)
+},{"./_stream_readable":127,"./_stream_writable":129,"core-util-is":133,"dup":17,"inherits":124,"process-nextick-args":135}],126:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"./_stream_transform":128,"core-util-is":133,"dup":18,"inherits":124}],127:[function(require,module,exports){
 arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],123:[function(require,module,exports){
+},{"./_stream_duplex":125,"./internal/streams/BufferList":130,"./internal/streams/destroy":131,"./internal/streams/stream":132,"_process":11,"core-util-is":133,"dup":19,"events":7,"inherits":124,"isarray":134,"process-nextick-args":135,"safe-buffer":136,"string_decoder/":137,"util":3}],128:[function(require,module,exports){
+arguments[4][20][0].apply(exports,arguments)
+},{"./_stream_duplex":125,"core-util-is":133,"dup":20,"inherits":124}],129:[function(require,module,exports){
+arguments[4][21][0].apply(exports,arguments)
+},{"./_stream_duplex":125,"./internal/streams/destroy":131,"./internal/streams/stream":132,"_process":11,"core-util-is":133,"dup":21,"inherits":124,"process-nextick-args":135,"safe-buffer":136,"util-deprecate":138}],130:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22,"safe-buffer":136}],131:[function(require,module,exports){
+arguments[4][23][0].apply(exports,arguments)
+},{"dup":23,"process-nextick-args":135}],132:[function(require,module,exports){
+arguments[4][24][0].apply(exports,arguments)
+},{"dup":24,"events":7}],133:[function(require,module,exports){
+arguments[4][116][0].apply(exports,arguments)
+},{"../../../../../../../../../../../../../.nvm/versions/node/v4.8.6/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":10,"dup":116}],134:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],135:[function(require,module,exports){
 arguments[4][27][0].apply(exports,arguments)
-},{"./_stream_readable":125,"./_stream_writable":127,"core-util-is":131,"dup":27,"inherits":122,"process-nextick-args":133}],124:[function(require,module,exports){
+},{"_process":11,"dup":27}],136:[function(require,module,exports){
 arguments[4][28][0].apply(exports,arguments)
-},{"./_stream_transform":126,"core-util-is":131,"dup":28,"inherits":122}],125:[function(require,module,exports){
+},{"buffer":4,"dup":28}],137:[function(require,module,exports){
+arguments[4][41][0].apply(exports,arguments)
+},{"dup":41,"safe-buffer":136}],138:[function(require,module,exports){
 arguments[4][29][0].apply(exports,arguments)
-},{"./_stream_duplex":123,"./internal/streams/BufferList":128,"./internal/streams/destroy":129,"./internal/streams/stream":130,"_process":21,"core-util-is":131,"dup":29,"events":17,"inherits":122,"isarray":132,"process-nextick-args":133,"safe-buffer":134,"string_decoder/":135,"util":13}],126:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"./_stream_duplex":123,"core-util-is":131,"dup":30,"inherits":122}],127:[function(require,module,exports){
+},{"dup":29}],139:[function(require,module,exports){
 arguments[4][31][0].apply(exports,arguments)
-},{"./_stream_duplex":123,"./internal/streams/destroy":129,"./internal/streams/stream":130,"_process":21,"core-util-is":131,"dup":31,"inherits":122,"process-nextick-args":133,"safe-buffer":134,"util-deprecate":136}],128:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":125,"./lib/_stream_passthrough.js":126,"./lib/_stream_readable.js":127,"./lib/_stream_transform.js":128,"./lib/_stream_writable.js":129,"dup":31}],140:[function(require,module,exports){
 arguments[4][32][0].apply(exports,arguments)
-},{"dup":32,"safe-buffer":134}],129:[function(require,module,exports){
-arguments[4][33][0].apply(exports,arguments)
-},{"dup":33,"process-nextick-args":133}],130:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34,"events":17}],131:[function(require,module,exports){
-arguments[4][114][0].apply(exports,arguments)
-},{"../../../../../../../../browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":20,"dup":114}],132:[function(require,module,exports){
-arguments[4][36][0].apply(exports,arguments)
-},{"dup":36}],133:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"_process":21,"dup":37}],134:[function(require,module,exports){
-arguments[4][38][0].apply(exports,arguments)
-},{"buffer":14,"dup":38}],135:[function(require,module,exports){
-arguments[4][39][0].apply(exports,arguments)
-},{"dup":39,"safe-buffer":134}],136:[function(require,module,exports){
-arguments[4][40][0].apply(exports,arguments)
-},{"dup":40}],137:[function(require,module,exports){
-arguments[4][42][0].apply(exports,arguments)
-},{"./lib/_stream_duplex.js":123,"./lib/_stream_passthrough.js":124,"./lib/_stream_readable.js":125,"./lib/_stream_transform.js":126,"./lib/_stream_writable.js":127,"dup":42}],138:[function(require,module,exports){
-arguments[4][43][0].apply(exports,arguments)
-},{"./readable":137,"dup":43}],139:[function(require,module,exports){
+},{"./readable":139,"dup":32}],141:[function(require,module,exports){
 (function (process){
 var Transform = require('readable-stream/transform')
   , inherits  = require('util').inherits
@@ -23193,9 +23279,9 @@ module.exports.obj = through2(function (options, transform, flush) {
 })
 
 }).call(this,require('_process'))
-},{"_process":21,"readable-stream/transform":138,"util":56,"xtend":140}],140:[function(require,module,exports){
-arguments[4][57][0].apply(exports,arguments)
-},{"dup":57}],141:[function(require,module,exports){
+},{"_process":11,"readable-stream/transform":140,"util":47,"xtend":142}],142:[function(require,module,exports){
+arguments[4][48][0].apply(exports,arguments)
+},{"dup":48}],143:[function(require,module,exports){
 (function (process,global,Buffer){
 'use strict'
 
@@ -23326,7 +23412,7 @@ function WebSocketStream(target, protocols, options) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"_process":21,"buffer":14,"duplexify":102,"through2":139,"ws":142}],142:[function(require,module,exports){
+},{"_process":11,"buffer":4,"duplexify":104,"through2":141,"ws":144}],144:[function(require,module,exports){
 
 var ws = null
 
@@ -23340,4 +23426,4 @@ if (typeof WebSocket !== 'undefined') {
 
 module.exports = ws
 
-},{}]},{},[6]);
+},{}]},{},[54]);
