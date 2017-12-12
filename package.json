@@ -1,6 +1,6 @@
 {
   "name": "http2-cache",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "browser": "dist/http2-cache.js",
@@ -64,9 +64,10 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
-    "collections": "^5.1.0",
+    "collections": "^5.1.1",
     "http2.js": "4.0.2",
     "object-keys": "^1.0.11",
+    "string.fromcodepoint": "^0.2.1",
     "websocket-stream": "3.3.3"
   },
   "browserDependencies": {},
