@@ -24,36 +24,6 @@ module.exports = function(config) {
     exclude: [
     ],
 
-    client: {
-      // 3. Configure the URLs that this plugin should execute 
-      //    within a WebWorker for you. These patterns are 
-      //    matched (using minimatch) on the `config.files` 
-      //    array configured in step 2. 
-      //    If you omit `pattern`, all URLs will be executed. 
-      mochaWebWorker: {
-        pattern : [
-          'dist/http2-cache.js',
-          //'integration-test/*-itest.js',
-          'integration-test/*-test.js'
-        ],
-        // You can also use a SharedWorker for test execution 
-        // instead of the default 'Worker' 
-        worker: 'SharedWorker',
-        // You can also pass some options to mocha: 
-        mocha   : {
-          ui: 'tdd'
-        },
-        // You can also evaluate javascript code within the Worker at various stages: 
-        evaluate: {
-          beforeMochaImport: 'self.console.log("Before the mocha script is imported")',
-          beforeMochaSetup : 'self.console.log("Before mocha is setup (mocha.setup())")',
-          beforeScripts    : 'self.console.log("Before your scripts are imported")',
-          beforeRun        : 'self.console.log("Before your tests are run (mocha.run())")',
-          afterRun         : 'self.console.log("After your tests have been run")'
-        }
-      }
-    },
-
     // preprocess matching files before serving them to the browser
     // available preprocessors: https://npmjs.org/browse/keyword/karma-preprocessor
     preprocessors: {
@@ -136,5 +106,5 @@ module.exports = function(config) {
         'karma-chrome-launcher',
         'karma-firefox-launcher'
     ]
-  })
-}
+  });
+};
