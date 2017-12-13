@@ -1,7 +1,7 @@
-
+/* global importScripts, postMessage */
 self.global = self;
 
-delete self['global'];
+delete self.global;
 
 importScripts('../../../node_modules/mocha/mocha.js');
 importScripts('../../../node_modules/chai/chai.js');

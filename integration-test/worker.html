@@ -1,0 +1,49 @@
+<script type="text/javascript">
+
+	function createWorker(workerFunc) {
+	    if (! (workerFunc instanceof Function)) {
+	        throw new Error('Argument must be function');
+	    }
+	    const src = `(${workerFunc})();`;
+	    const blob = new Blob([src], {type: 'application/javascript'});
+	    const url = URL.createObjectURL(blob);
+	    return new Worker(url);    
+	}
+
+	const receivingWorker = createWorker(function () {
+	    self.addEventListener('message', function (e) {
+	    	var port = e.data.port || e.ports[0];
+	    	port.onmessage = function (e) { // (A)
+	    		debugger;
+		        console.log(e.data);
+		        port.postMessage(e.data);
+		    };
+	    });
+	});
+
+
+	const channel = new MessageChannel();
+	receivingWorker.postMessage({
+		port: channel.port2
+	}, [channel.port2]);
+
+    channel.port1.postMessage(['hello', 'world']); // (C)
+	channel.port1.onmessage = function (e) { 
+		debugger;
+	};
+
+		/*
+	var w = new Worker('worker-server.js');
+
+	w.addEventListener('message', function (e) {
+		console.log('msg received', e);	
+	});
+
+
+	var channel = new MessageChannel();
+	w.postMessage({port: channel.port1}, [channel.port1]);
+	window.postMessage({port: channel.port2}, [channel.port2]);
+
+	//w.postMessage('test');
+	*/
+</script>
