@@ -1,4 +1,4 @@
-/* global importScripts, postMessage */
+/* globals self, importScripts, console, mocha:true */
 self.global = self;
 
 delete self.global;

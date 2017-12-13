@@ -1,5 +1,5 @@
-/* global mocha:true */
-var mocha = require('mocha');
+/* globals process, console, mocha:true */
+var mocha = require('mocha'); 
 
 function MyReporter(runner) {
   mocha.reporters.Base.call(this, runner);
