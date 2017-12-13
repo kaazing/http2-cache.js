@@ -117,8 +117,8 @@
     ],
     "indent"        : 4,         // Specify indentation spacing
     "globals": {
+      //"console": true,
       "self": true,
-      "console": true,
       "WebSocket": false,
       "WorkerGlobalScope": false,
       "Buffer": false,
