@@ -22,10 +22,9 @@ var socketServerOps = {
 	port: 7081
 };
 
-
-var message = "Hello, Dave. You're looking well today.";
+var message = JSON.stringify(configServerOps.config);
 getSocketServer(socketServerOps, function (request, response) {
-	response.setHeader('Content-Type', 'text/html');
+	response.setHeader('Content-Type', 'application/json');
     response.setHeader('Content-Length', message.length);
     response.setHeader('Cache-Control', 'private, max-age=0');
     response.write(message);
