@@ -389,7 +389,7 @@ describe('http-cache', function () {
         assert.equal(header, null);
 
         header = parseCacheControl('public, max-age=3600');
-        assert.equal(header['public'], true);
+        assert.equal(header.public, true);
         assert.equal(header['max-age'], 3600);
 
         header = parseCacheControl(123);
