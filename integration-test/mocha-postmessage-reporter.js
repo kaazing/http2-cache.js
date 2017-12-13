@@ -1,5 +1,5 @@
-var mocha = require('mocha');
-module.exports = MyReporter;
+/* globals process, console, mocha:true */
+var mocha = require('mocha'); 
 
 function MyReporter(runner) {
   mocha.reporters.Base.call(this, runner);
@@ -21,3 +21,5 @@ function MyReporter(runner) {
     process.exit(failures);
   });
 }
+
+module.exports = MyReporter;

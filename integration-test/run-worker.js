@@ -1,3 +1,4 @@
+/* globals self, importScripts, console, mocha:true */
 
 self.global = self;
 
