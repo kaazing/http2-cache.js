@@ -7,11 +7,10 @@ if (typeof XMLHttpRequest === 'undefined') {
     XMLHttpRequest = require("xhr2").XMLHttpRequest;   
 }
 /* jshint ignore:end */
+
 require("../lib/http2-cache");
 
-var http = require('http'),
-    http2 = require('http2.js'),
-    FormData = require("../lib/form-data").FormData,
+var FormData = require("../lib/form-data").FormData,
     getSocketServer = require('./test-utils.js').getSocketServer,
     getConfigServer = require('./test-utils').getConfigServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
