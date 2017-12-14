@@ -82,6 +82,47 @@ describe('http-cache', function () {
         });
     });
 
+    it('Cache returns null on no-store request directive', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'no-store'});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1); //it should be null
+                done();
+            });
+        });
+    });
+
+
+    it('Cache returns null on must-revalidate request directive', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'must-revalidate'});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, response1); //it should be null
+                done();
+           });
+        });
+    });
+
     it('Cache returns no match', function (done) {
         var cache = new Cache();
         var response1 = {
@@ -136,7 +177,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/',
             'headers': {
-                'cache-control': 'max-age=1', 
+                'cache-control': 'max-age=1',
                 'date': new Date()
             },
             'statusCode': 200
@@ -151,31 +192,6 @@ describe('http-cache', function () {
         cache.put(requestInfo1, response1).then(function () {
             cache.match(requestInfo2).then(function (r) {
                 assert.equal(r, response1);
-                done();
-            });
-        });
-    });
-
-    it('Cache match fail when authorization header does not match', function (done) {
-        var cache = new Cache();
-        var response1 = {
-            'href': 'https://example.com/',
-            'headers': {
-                'cache-control': 'max-age=1', 
-                'date': new Date()
-            },
-            'statusCode': 200
-        };
-        var requestInfo1 = new RequestInfo("GET", "https://example.com/", {
-            'authorization': 'MyFirstToken'
-        });
-
-        var requestInfo2 = new RequestInfo("GET", "https://example.com/", {
-            'authorization': 'MySecondToken'
-        });
-        cache.put(requestInfo1, response1).then(function () {
-            cache.match(requestInfo2).then(function (r) {
-                assert.equal(r, null);
                 done();
             });
         });
@@ -196,6 +212,34 @@ describe('http-cache', function () {
         });
 
         var requestInfo2 = new RequestInfo("GET", "https://example.com/public", {
+            'authorization': 'MySecondToken'
+        });
+        cache.put(requestInfo1, response1).then(function () {
+            cache.match(requestInfo2).then(function (r) {
+                assert.equal(r, response1);
+                done();
+            });
+        });
+    });
+
+
+
+    //this should not work
+    it('Cache match fail when authorization header does not match and cache-control is private', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/private',
+            'headers': {
+                'cache-control': 'private, max-age=1', 
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo1 = new RequestInfo("GET", "https://example.com/private", {
+            'authorization': 'MyFirstToken'
+        });
+
+        var requestInfo2 = new RequestInfo("GET", "https://example.com/private", {
             'authorization': 'MySecondToken'
         });
         cache.put(requestInfo1, response1).then(function () {
@@ -358,3 +402,4 @@ describe('http-cache', function () {
         assert.equal(header, null);
     });
 });
+

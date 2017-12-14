@@ -7,11 +7,10 @@ if (typeof XMLHttpRequest === 'undefined') {
     XMLHttpRequest = require("xhr2").XMLHttpRequest;   
 }
 /* jshint ignore:end */
+
 require("../lib/http2-cache");
 
-var http = require('http'),
-    http2 = require('http2.js'),
-    FormData = require("../lib/form-data").FormData,
+var FormData = require("../lib/form-data").FormData,
     getSocketServer = require('./test-utils.js').getSocketServer,
     getConfigServer = require('./test-utils').getConfigServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
@@ -100,6 +99,57 @@ describe('http2-xhr', function () {
         };
         xhr.open('GET', 'http://cache-endpoint2/path', true);
 
+        xhr.send(null);
+
+    });
+
+    it('should timeout proxyfied GET request', function (done) {
+
+        var date =  new Date().toString(),
+            requestCount = 0,
+            timeout = 100;
+        socketOnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                // Will be sent to late.
+                setTimeout(function () {
+                    var message = '{"date": ' + Date.now() + '};';
+                    assert.equal(request.url, '/path/proxy');
+                    response.setHeader('Content-Type', 'application/json');
+                    response.setHeader('Content-Length', message.length);
+                    response.setHeader('Cache-Control', 'private, max-age=0');
+                    response.setHeader('date', date);
+                    response.write(message);
+                    response.end();
+                }, timeout + 1);
+            } else {
+                throw new Error("Should only get 1 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 0);
+                assert.equal(xhr.statusText, "");
+            }
+
+            if (xhr.readyState === 4) {
+                throw new Error("Should not call onreadystatechange readyState 4");
+            }
+        };
+
+        xhr.ontimeout = function () {
+            assert.equal(xhr.response, null);
+
+            // Make sure xhr.readyState === 4 is never called
+            setTimeout(done, 100);
+        };
+
+        xhr.open('GET', 'http://localhost:7080/path/proxy', true);
+        xhr.timeout = timeout;
         xhr.send(null);
 
     });
@@ -588,6 +638,188 @@ describe('http2-xhr', function () {
         firstRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithError', true);
 
         firstRequest.send(null);
+    });
+
+    it('should return responseType when proxyfied', function (done) {
+
+        var message = '{"message": "Hello, Dave. You\'re looking well today."}';
+        var date =  new Date().toString();
+        var responseTypes = [
+            {
+                requestType: 'arraybuffer',
+                responseType: 'ArrayBuffer'
+            },
+            {
+                requestType: 'text',
+                responseType: 'String'
+            },
+            {
+                requestType: 'json',
+                responseType: 'Object'
+            },
+            /*
+            {
+                requestType: 'blob',
+                responseType: 'Blob'
+            },
+            {
+                requestType: 'document',
+                responseType: 'HTMLNode'
+            }
+            */
+        ];
+
+        socketOnRequest = function (request, response) {
+             // TODO check request headers and requests responses
+            assert.equal(request.url, '/path/proxy/responseType');
+            response.setHeader('Content-Type', 'application/json');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.setHeader('date', date);
+            response.write(message);
+            response.end();
+        };
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        responseTypes.forEach(function (assertType) {
+            XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+            var xhr = new XMLHttpRequest();
+
+            var statechanges = 0;
+            xhr.onreadystatechange = function () {
+                ++statechanges;
+
+                if (xhr.readyState >= 2) {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                }
+
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    assert.equal(xhr.responseType, assertType.requestType);
+                    assert.equal(xhr.response.constructor.name, assertType.responseType);
+                    doneN(responseTypes.length);
+                }
+            };
+
+            xhr.open('GET', 'http://localhost:7080/path/proxy/responseType', true);
+            xhr.responseType = assertType.requestType;
+            xhr.send(null);
+        });
+    });
+
+    it('should return Throw DOMException when responseText is used with invalid responseType', function (done) {
+        
+        var message = '{"message": "Hello, Dave. You\'re looking well today."}';
+        var date =  new Date().toString();
+        socketOnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/path/proxy/responseTypeBadText');
+            response.setHeader('Content-Type', 'application/json');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.setHeader('date', date);
+            response.write(message);
+            response.end();
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.responseType, 'json');
+                assert.equal(typeof xhr.response, 'object');
+                try {
+                    assert.equal(xhr.responseText);
+                } catch (err) {
+                    done();   
+                }
+            }
+        };
+        
+        xhr.open('GET', 'http://localhost:7080/path/proxy/responseTypeBadText', true);
+        xhr.responseType = 'json';
+        xhr.send(null);
+    });
+
+    it('should return responseType when NOT proxyfied', function (done) {
+
+        var date =  new Date().toString();
+        var responseTypes = [
+            {
+                requestType: 'arraybuffer',
+                responseType: 'ArrayBuffer'
+            },
+            {
+                requestType: 'text',
+                responseType: 'String'
+            },
+            {
+                requestType: 'json',
+                responseType: 'Object'
+            },
+            /*
+            {
+                requestType: 'blob',
+                responseType: 'Blob'
+            },
+            {
+                requestType: 'document',
+                responseType: 'HTMLNode'
+            }
+            */
+        ];
+
+        socketOnRequest = function (request, response) {
+            throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
+        };
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        responseTypes.forEach(function (assertType) {
+            XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+            var xhr = new XMLHttpRequest();
+
+            var statechanges = 0;
+            xhr.onreadystatechange = function () {
+                ++statechanges;
+
+                if (xhr.readyState >= 2) {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "OK");
+                }
+
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    assert.equal(assertType.requestType, xhr.responseType);
+                    assert.equal(assertType.responseType, xhr.response.constructor.name);
+                    doneN(responseTypes.length);
+                }
+            };
+
+            xhr.open('GET', 'http://localhost:7080/path/responseType', true);
+            xhr.responseType = assertType.requestType;
+            xhr.send(null);
+        });
     });
 
     it('should cache GET request and reuse for response larger than MAX_PAYLOAD_SIZE', function (done) {
