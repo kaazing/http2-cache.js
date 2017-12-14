@@ -20,6 +20,7 @@ tmp
 coverage
 integration-test/*-test.js
 TEST-*.xml
+dist
 
 # Run-time generated files that shouldn't be committed.
 node_modules
