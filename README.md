@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=master)](http://travis-ci.org/kaazing/http2-cache.js)
+[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=develop)](http://travis-ci.org/kaazing/http2-cache.js)
 
 # http2-cache.js
 
@@ -51,6 +51,7 @@ server.  The configurations should be of the following form:
     {  
        "push": "optional-path-that-is-opened-for-pushes",
        "transport": "wss://where-the-underlying-ws-transport-connects:443/",
+       "clientLogLevel": "debug",
        "proxy":[  
           "http://origin-to-send-via-http2:80/path/",
           "http://origin-to-send-via-http2:80/path2/",
