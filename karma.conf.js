@@ -101,7 +101,6 @@ module.exports = function(config) {
     plugins: [
         'karma-mocha',
         'karma-sinon-chai',
-        'karma-mocha-webworker',
         'karma-coverage',
         'karma-chrome-launcher',
         'karma-firefox-launcher'
