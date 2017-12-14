@@ -1,14 +1,29 @@
 {
   "name": "http2-cache",
-  "version": "0.1.0",
+  "version": "0.2.6",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
+  "browser": "index.js",
+  "overlay": {
+    "browser": {
+      "main": "index.js",
+      "redirects": {
+        "http2-cache": "index.js"
+      }
+    },
+    "node": {
+      "main": "lib/http2-cache.js",
+      "redirects": {
+        "http2-cache": "lib/http2-cache.js"
+      }
+    }
+  },
   "scripts": {
-    "lint": "jshint lib/*.js test/*.js integration-test/*.js",
+    "lint": "jshint .",
     "pretest": "npm run lint",
     "test": "mocha",
-    "build": "npm run test && node postinstall.js",
-    "postinstall": "node postinstall.js"
+    "test:http2-xhr": "mocha --grep http2-xhr",
+    "build": "npm run test && node build.js"
   },
   "repository": {
     "type": "git",
@@ -21,8 +36,10 @@
     "push"
   ],
   "exclude": [
+    "example",
     "test",
-    "integration-test"
+    "integration-test",
+    "build.js"
   ],
   "author": "dpwspoon",
   "license": "Apache-2.0",
@@ -31,20 +48,24 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
-    "browserify": "14.0.0 ",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
-    "http2": "https://github.com/kaazing/node-http2#http2ws",
-    "websocket-stream": "3.3.3",
-    "collections": "~5.0.x",
-    "bluebird": "~3.4.x"
+    "collections": "^5.1.1",
+    "http2.js": "4.0.2",
+    "object-keys": "^1.0.11",
+    "string.fromcodepoint": "^0.2.1",
+    "websocket-stream": "3.3.3"
   },
+  "browserDependencies": {},
   "devDependencies": {
-    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
-    "jshint": "2.9.4",
-    "xhr2": "0.1.4",
-    "spdy": "3.4.4 ",
-    "sinon": "1.17.7",
+    "browserify": "14.0.0 ",
     "chai": "3.5.0",
-    "mocha": "3.2.0"
+    "concurrently": "^3.5.0",
+    "http-server": "^0.10.0",
+    "jshint": "2.9.4",
+    "mocha": "3.2.0",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
+    "sinon": "1.17.7",
+    "spdy": "3.4.4 ",
+    "xhr2": "0.1.4"
   }
 }
