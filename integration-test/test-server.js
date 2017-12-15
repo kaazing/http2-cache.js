@@ -9,7 +9,6 @@ var http = require('http'),
 var configServerOps = {
     config: {
         'transport': 'ws://localhost:7081/path',
-        'worker': true,
         'proxy': [
             'http://cache-endpoint/',
             'http://localhost:7080/path/proxy',

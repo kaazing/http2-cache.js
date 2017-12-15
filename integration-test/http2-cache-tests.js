@@ -955,7 +955,7 @@ confProto.registerWorkerPort = function (port) {
                     // Use Sharebuffer to prevent copy
                     var transferable = [],
                         // TODO Enable via config ? 
-                        useTransferable = false; // Disabled for now
+                        useTransferable = !!this.useTransferable; // Disabled for now
 
                     // DONE fix Uncaught DataCloneError: Failed to execute 'postMessage' on 'Worker': Value at index 0 does not have a transferable type.
                     // - https://chromium.googlesource.com/chromium/blink/+/72fef91ac1ef679207f51def8133b336a6f6588f/LayoutTests/fast/events/message-port-clone.html                        
