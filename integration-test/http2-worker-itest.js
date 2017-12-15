@@ -77,9 +77,9 @@ describe('http2-cache', function () {
 
         describe('HTTP2.js XHR', function () {
 
-            it('configure http2 proxy, and worker', function (done) {
+            it('configure http2 proxy, and worker (wait 250)', function (done) {
                 XMLHttpRequest.proxy(["http://localhost:7080/config"]);
-                done();
+                setTimeout(done, 250);
             });
 
             it('should proxy GET request small', function (done) {
@@ -159,10 +159,10 @@ describe('http2-cache', function () {
 
         describe('Pure XHR', function () {
 
-            it('configure worker', function (done) {
+            it('configure worker (wait 250)', function (done) {
                 XMLHttpRequest.configuration.useTransferable = false;
                 XMLHttpRequest.configuration.registerWorker(true);
-                done();
+                setTimeout(done, 250);
             });
 
             it('should proxy GET request small', function (done) {
@@ -243,11 +243,11 @@ describe('http2-cache', function () {
         describe('HTTP2.js XHR', function () {
 
 
-            it('configure http2 proxy, and worker', function (done) {
+            it('configure http2 proxy, and worker (wait 250)', function (done) {
                 XMLHttpRequest.configuration.useTransferable = false;
                 XMLHttpRequest.configuration.terminateWorker(true);
                 XMLHttpRequest.proxy(["http://localhost:7080/config"]);
-                done();
+                setTimeout(done, 250);
             });
 
             it('should proxy GET request small', function (done) {
