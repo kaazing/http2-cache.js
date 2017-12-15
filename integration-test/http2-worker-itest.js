@@ -1,6 +1,7 @@
 var assert = chai.assert;
 
-var largeRequestCharSize = 1024 * 10;
+//var largeRequestCharSize = 1024 * 1024 * 5; // ~ 5MB
+var largeRequestCharSize = 1024 * 250; // ~ 250 Kb
 
 describe('http2-cache', function () {
 	it('proxy() with empty params throws exception', function () {
@@ -23,6 +24,8 @@ describe('http2-cache', function () {
     });
 
     describe('Native XHR', function () {
+        XMLHttpRequest.configuration.useTransferable = false;
+
         it('should proxy GET request small', function (done) {
             
             var xhr = new XMLHttpRequest();
@@ -47,27 +50,27 @@ describe('http2-cache', function () {
         });
 
         it('should proxy GET request large', function (done) {
-                
-                var xhr = new XMLHttpRequest();
-                var statechanges = 0;
-                xhr.onloadstart = function () {
-                    xhr.onprogress = function () {
-                        xhr.onload = function () {
-                            assert.equal(xhr.status, 200);
-                            assert.equal(typeof xhr.response, 'string');
-                            assert.notEqual(xhr.response.lentgh, 0);
-                            assert.equal(xhr.getResponseHeader('content-type'), 'text/plain; charset=utf-8');
-                            done();
-                        };
+            
+            var xhr = new XMLHttpRequest();
+            var statechanges = 0;
+            xhr.onloadstart = function () {
+                xhr.onprogress = function () {
+                    xhr.onload = function () {
+                        assert.equal(xhr.status, 200);
+                        assert.equal(typeof xhr.response, 'string');
+                        assert.notEqual(xhr.response.lentgh, 0);
+                        assert.equal(xhr.getResponseHeader('content-type'), 'text/plain; charset=utf-8');
+                        done();
                     };
                 };
+            };
 
-                xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
-                };
-                xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
-                xhr.send(null);
-            });
+            xhr.onerror = function (err) {
+                throw new TypeError('Network request failed')
+            };
+            xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
+            xhr.send(null);
+        });
     });
 
     describe('Using Worker', function () {
@@ -75,6 +78,7 @@ describe('http2-cache', function () {
         describe('Native XHR', function () {
 
             it('configure worker', function (done) {
+                XMLHttpRequest.configuration.useTransferable = false;
                 XMLHttpRequest.configuration.registerWorker(true);
                 done();
             });
@@ -105,6 +109,33 @@ describe('http2-cache', function () {
 
             it('should proxy GET request large', function (done) {
                 
+                XMLHttpRequest.configuration.useTransferable = true;
+
+                var xhr = new XMLHttpRequest();
+                var statechanges = 0;
+                xhr.onloadstart = function () {
+                    xhr.onprogress = function () {
+                        xhr.onload = function () {
+                            assert.equal(xhr.status, 200);
+                            assert.equal(typeof xhr.response, 'string');
+                            assert.notEqual(xhr.response.lentgh, 0);
+                            assert.equal(xhr.getResponseHeader('content-type'), 'text/plain; charset=utf-8');
+                            done();
+                        };
+                    };
+                };
+
+                xhr.onerror = function (err) {
+                    throw new TypeError('Network request failed')
+                };
+                xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
+                xhr.send(null);
+            });
+
+            it('should proxy GET request large (Shared buffer)', function (done) {
+                
+                XMLHttpRequest.configuration.useTransferable = true;
+                
                 var xhr = new XMLHttpRequest();
                 var statechanges = 0;
                 xhr.onloadstart = function () {
@@ -128,7 +159,10 @@ describe('http2-cache', function () {
         });
 
         describe('HTTP2.js XHR', function () {
+
+
             it('configure http2 proxy, and worker', function (done) {
+                XMLHttpRequest.configuration.useTransferable = false;
                 XMLHttpRequest.proxy(["http://localhost:7080/config"]);
                 done();
             });
@@ -160,6 +194,30 @@ describe('http2-cache', function () {
             it('should proxy GET request large', function (done) {
                 
                 var xhr = new XMLHttpRequest();
+                var statechanges = 0;
+                xhr.onloadstart = function () {
+                    xhr.onprogress = function () {
+                        xhr.onload = function () {
+                            assert.equal(xhr.status, 200);
+                            assert.equal(typeof xhr.response, 'string');
+                            assert.notEqual(xhr.response.lentgh, 0);
+                            assert.equal(xhr.getResponseHeader('content-type'), 'text/plain; charset=utf-8');
+                            done();
+                        };
+                    };
+                };
+
+                xhr.onerror = function (err) {
+                    throw new TypeError('Network request failed')
+                };
+                xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
+                xhr.send(null);
+            });
+
+            it('should proxy GET request large (Shared buffer)', function (done) {
+                
+                var xhr = new XMLHttpRequest();
+                XMLHttpRequest.configuration.useTransferable = true;
                 var statechanges = 0;
                 xhr.onloadstart = function () {
                     xhr.onprogress = function () {
