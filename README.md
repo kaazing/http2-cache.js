@@ -101,7 +101,15 @@ Start data server
 Visit page `https://localhost:8080/` (Note: need to trust TLS cert)
 
 
-
 ### Integration Tests
 
-TODO -- These tests are not complete. 
+
+Run integration tests on client side:
+```
+npm run integration
+```
+
+Run client worker integration tests"
+```
+npm run integration:worker
+```

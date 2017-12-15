@@ -109,6 +109,21 @@ var defaultResponseHeaders = {
 };
 
 
+function generateRandAlphaNumStr(len) {
+    var rdmString = "";
+    while (rdmString.length < len) {
+        rdmString += Math.random().toString(36).substr(2);
+    }
+    return rdmString;
+}
+
+var UTF8_BYTES_REG = /%[89ABab]/g;
+function lengthInUtf8Bytes(str) {
+  // Matches only the 10.. bytes that are non-initial characters in a multi-byte sequence.
+  var m = encodeURIComponent(str).match(UTF8_BYTES_REG);
+  return str.length + (m ? m.length : 0);
+}
+
 function _getConfigServer(options, onStart) {
 
     return http.createServer(function (request, response) {
@@ -152,7 +167,15 @@ function _getConfigServer(options, onStart) {
                     data: Date.now()
                 }));
             }
-
+        } else if (path.startsWith("/charof")) {
+            var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
+            var charBody = generateRandAlphaNumStr(charSize);
+            var charLength = lengthInUtf8Bytes(charBody);
+            console.log("Sending response of " + charLength + " bytes");
+            response.writeHead(200, Object.assign({
+                "Content-Type": 'text/plain; charset=utf-8'
+            }, defaultResponseHeaders));
+            response.end(charBody);
         } else {
             console.warn("Request for unknown path: " + path);
             response.writeHead(404);
@@ -178,21 +201,6 @@ function unicodeStringToTypedArray(s) {
         ua[i] = ch.charCodeAt(0);
     });
     return ua;
-}
-
-function generateRandAlphaNumStr(len) {
-    var rdmString = "";
-    while (rdmString.length < len) {
-        rdmString += Math.random().toString(36).substr(2);
-    }
-    return rdmString;
-}
-
-var UTF8_BYTES_REG = /%[89ABab]/g;
-function lengthInUtf8Bytes(str) {
-  // Matches only the 10.. bytes that are non-initial characters in a multi-byte sequence.
-  var m = encodeURIComponent(str).match(UTF8_BYTES_REG);
-  return str.length + (m ? m.length : 0);
 }
 
 function getConfigServer(options, onStart) {
