@@ -3,4 +3,4 @@ e2e-test/tests.js
 index.js
 dist/
 coverage/
-integration-test/*-test.js
+integration-test/*-tests.js
