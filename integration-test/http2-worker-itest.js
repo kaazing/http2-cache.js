@@ -128,30 +128,6 @@ describe('http2-cache', function () {
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
             });
-
-            it('should proxy GET request large (Shared buffer)', function (done) {
-                
-                var xhr = new XMLHttpRequest();
-                XMLHttpRequest.configuration.useTransferable = true;
-                var statechanges = 0;
-                xhr.onloadstart = function () {
-                    xhr.onprogress = function () {
-                        xhr.onload = function () {
-                            assert.equal(xhr.status, 200);
-                            assert.equal(typeof xhr.response, 'string');
-                            assert.notEqual(xhr.response.lentgh, 0);
-                            assert.equal(xhr.getResponseHeader('content-type'), 'text/plain; charset=utf-8');
-                            done();
-                        };
-                    };
-                };
-
-                xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
-                };
-                xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
-                xhr.send(null);
-            });
         });
     });
 
