@@ -36,7 +36,7 @@ mocha.setup({
   ignoreLeaks: false
 });
 
-importScripts('./http-cache-test.js');
+importScripts('./http2-worker-itest.js');
 
 mocha.run();
 
