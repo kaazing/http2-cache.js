@@ -46,7 +46,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/config', true);
                 xhr.send(null);
@@ -69,7 +69,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -93,7 +93,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -125,7 +125,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/config', true);
                 xhr.send(null);
@@ -148,7 +148,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -172,7 +172,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -208,7 +208,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/config', true);
                 xhr.send(null);
@@ -233,7 +233,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -257,7 +257,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -282,7 +282,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -317,7 +317,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/config', true);
                 xhr.send(null);
@@ -340,7 +340,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -365,7 +365,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -395,7 +395,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/config', true);
                 xhr.send(null);
@@ -418,7 +418,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
@@ -443,7 +443,7 @@ describe('http2-cache', function () {
                 };
 
                 xhr.onerror = function (err) {
-                    throw new TypeError('Network request failed')
+                    throw new TypeError('Network request failed');
                 };
                 xhr.open('GET', 'http://cache-endpoint/charof' + largeRequestCharSize, true);
                 xhr.send(null);
