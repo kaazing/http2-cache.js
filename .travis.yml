@@ -7,3 +7,4 @@ script: npm run $COMMAND
 env:
   - COMMAND=lint
   - COMMAND=test
+  - COMMAND=build
