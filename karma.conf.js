@@ -11,13 +11,13 @@ module.exports = function(config) {
 
     // frameworks to use
     // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
-    frameworks : ['mocha', 'sinon-chai', 'mocha-webworker'],
+    frameworks : ['mocha', 'sinon-chai'],
 
     // list of files / patterns to load in the browser
     files: [
       {pattern: 'dist/http2-cache.js', included: true},
       //{pattern: 'integration-test/*-itest.js', included: true},
-      {pattern: 'integration-test/*-test.js', included: true}
+      {pattern: 'integration-test/*-tests.js', included: true}
     ],
 
     // list of files to exclude
@@ -101,7 +101,6 @@ module.exports = function(config) {
     plugins: [
         'karma-mocha',
         'karma-sinon-chai',
-        'karma-mocha-webworker',
         'karma-coverage',
         'karma-chrome-launcher',
         'karma-firefox-launcher'

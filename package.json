@@ -27,13 +27,13 @@
     "test:karma-chrome": "karma start --no-auto-watch --single-run --browsers=Chrome",
     "test:karma-travis": "npm run build:integration && karma start --no-auto-watch --single-run --browsers=Chrome_travis_ci",
     "test:karma-dev": "karma start --auto-watch --no-single-run --capture",
-    "test:jasmine": "concurrently \"http-server -p 8086\" \"open http://localhost:8086/integration-test/run.html\"",
-    "integration": "npm run build:integration && npm run test:karma",
-    "integration:browser": "npm run build:integration && npm run test:browser",
+    "test:browser": "npm run build:integration && concurrently \"http-server -p 8086\" \"open http://localhost:8086/integration-test/run.html\"",
+    "test:jasmine": "npm run test:browser",
+    "integration": "npm run test:browser",
     "build": "npm run build:browserify && npm run build:uglify",
     "build:browserify": "browserify -r ./lib/http2-cache.js -s http2-cache > ./dist/http2-cache.js",
     "build:uglify": "uglifyjs dist/http2-cache.js -c > ./dist/http2-cache.min.js",
-    "build:integration": "./node_modules/.bin/browserify -r ./test/http-cache-test.js -s tests > ./integration-test/http-cache-test.js"
+    "build:integration": "./node_modules/.bin/browserify -r ./test/http-cache-test.js -s tests > ./integration-test/http2-cache-tests.js"
   },
   "repository": {
     "type": "git",
