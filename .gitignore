@@ -18,7 +18,7 @@ atlassian-ide-plugin.xml
 out
 tmp
 coverage
-integration-test/*-test.js
+integration-test/*-tests.js
 TEST-*.xml
 dist
 
