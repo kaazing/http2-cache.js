@@ -17,7 +17,7 @@ module.exports = function(config) {
     files: [
       {pattern: 'dist/http2-cache.js', included: true},
       //{pattern: 'integration-test/*-itest.js', included: true},
-      {pattern: 'integration-test/*-test.js', included: true}
+      {pattern: 'integration-test/*-tests.js', included: true}
     ],
 
     // list of files to exclude
