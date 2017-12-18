@@ -6,12 +6,17 @@ var http = require('http'),
     getConfigServer = require('./../test/test-utils.js').getConfigServer;
 
 
+var socketServerOps = {
+    //hostname: '192.168.6.143',
+    hostname: 'localhost',
+    port: 7081
+};
+
 var configServerOps = {
     config: {
-        'transport': 'ws://localhost:7081/path',
+        'transport': 'ws://' + socketServerOps.hostname + ':' + socketServerOps.port + '/path',
         'proxy': [
-            'http://cache-endpoint/',
-            'http://localhost:7080/path/proxy',
+            'http://cache-endpoint/'
         ]
     },
     port: 7080
@@ -19,9 +24,6 @@ var configServerOps = {
 
 getConfigServer(configServerOps);
 
-var socketServerOps = {
-	port: 7081
-};
 
 getSocketServer(socketServerOps, function (request, response) {
 
@@ -32,7 +34,9 @@ getSocketServer(socketServerOps, function (request, response) {
         response.writeHead(200, {
             "Content-Type": 'text/plain; charset=utf-8'
         });
-        response.end(charBody);
+        var buf = Buffer.from(charBody, 'utf8');
+        response.write(buf);
+        response.end();
     } else {
 
         var message = JSON.stringify(configServerOps.config);
