@@ -2,7 +2,7 @@ var assert = chai.assert;
 
 //var largeRequestCharSize = 1024 * 1024 * 5; // ~ 5MB
 var largeRequestCharSize = 1024 * 1000; // ~ 100Kb
-
+var hostname = window.location.hostname;
 describe('http2-cache', function () {
 
     it('proxy() with empty params throws exception', function () {
@@ -48,7 +48,7 @@ describe('http2-cache', function () {
                 xhr.onerror = function (err) {
                     throw new TypeError('Network request failed');
                 };
-                xhr.open('GET', 'http://localhost:7080/config', true);
+                xhr.open('GET', 'http://' +  hostname + ':7080/config', true);
                 xhr.send(null);
             });
 
@@ -71,7 +71,7 @@ describe('http2-cache', function () {
                 xhr.onerror = function (err) {
                     throw new TypeError('Network request failed');
                 };
-                xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
+                xhr.open('GET', 'http://' +  hostname + ':7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
             }); 
 
@@ -95,7 +95,7 @@ describe('http2-cache', function () {
                 xhr.onerror = function (err) {
                     throw new TypeError('Network request failed');
                 };
-                xhr.open('GET', 'http://localhost:7080/charof' + largeRequestCharSize, true);
+                xhr.open('GET', 'http://' +  hostname + ':7080/charof' + largeRequestCharSize, true);
                 xhr.send(null);
             });
         });
@@ -103,7 +103,7 @@ describe('http2-cache', function () {
         describe('HTTP2.js XHR', function () {
 
             it('configure http2 proxy, and worker (wait 250)', function (done) {
-                XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+                XMLHttpRequest.proxy(["http://" +  hostname + ":7080/config"]);
                 setTimeout(done, 250);
             });
 
@@ -185,7 +185,7 @@ describe('http2-cache', function () {
         it('configure http2 proxy, and worker (wait 250)', function (done) {
             XMLHttpRequest.configuration.useTransferable = false;
             XMLHttpRequest.configuration.terminateWorker(true);
-            XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+            XMLHttpRequest.proxy(["http://" +  hostname + ":7080/config"]);
             setTimeout(done, 250);
         });
 
@@ -266,7 +266,7 @@ describe('http2-cache', function () {
         it('configure http2 proxy, and worker (wait 250)', function (done) {
             XMLHttpRequest.configuration.useTransferable = true;
             XMLHttpRequest.configuration.terminateWorker(true);
-            XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+            XMLHttpRequest.proxy(["http://" +  hostname + ":7080/config"]);
             setTimeout(done, 250);
         });
 
