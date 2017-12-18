@@ -19,7 +19,7 @@ var configServerOps = {
             'http://cache-endpoint/'
         ]
     },
-    port: 7080
+    port: 7080      
 };
 
 getConfigServer(configServerOps);

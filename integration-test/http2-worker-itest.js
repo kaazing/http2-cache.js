@@ -1,7 +1,7 @@
 var assert = chai.assert;
 
 //var largeRequestCharSize = 1024 * 1024 * 5; // ~ 5MB
-var largeRequestCharSize = 1024 * 1000; // ~ 100Kb
+var largeRequestCharSize = 1024 * 1000; // ~ 1000Kb
 var hostname = window.location.hostname;
 describe('http2-cache', function () {
 
@@ -343,5 +343,4 @@ describe('http2-cache', function () {
             xhr.send(null);
         });
     });
-    
 });
