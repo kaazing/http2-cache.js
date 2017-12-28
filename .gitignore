@@ -14,10 +14,13 @@ atlassian-ide-plugin.xml
 .*.swp
 
 # Build and test generated files that shouldn't be committed.
-/.watch.log
-/builds
-/out
+.watch.log
+out
+tmp
+coverage
+integration-test/*-tests.js
 TEST-*.xml
+dist
 
 # Run-time generated files that shouldn't be committed.
 node_modules
