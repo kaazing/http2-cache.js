@@ -14,7 +14,7 @@ var assert = require('assert');
 describe('utils', function () {
 
     describe('runningInWorker', function () {
-        assert.equal(runningInWorker(), false)
+        assert.equal(runningInWorker(), false);
     });
 
     describe('parseUrl', function () {
