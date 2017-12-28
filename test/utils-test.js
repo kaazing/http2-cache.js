@@ -2,14 +2,20 @@
 var mergeTypedArrays = require('../lib/utils').mergeTypedArrays,
 	Utf8ArrayToStr = require('../lib/utils').Utf8ArrayToStr,
 	parseUrl = require('../lib/utils').parseUrl,
+    runningInWorker = require('../lib/utils').runningInWorker,
 	FormData = require('../lib/form-data').FormData,
 	serializeXhrBody = require('../lib/utils').serializeXhrBody,
     unicodeStringToTypedArray = require('./test-utils').unicodeStringToTypedArray,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr;
+    
 
 var assert = require('assert');
 
 describe('utils', function () {
+
+	describe('runningInWorker', function () {
+		assert.equal(runningInWorker(), false)
+	});
 
 	describe('parseUrl', function () {
 		it('should parse url with custom port', function () {
