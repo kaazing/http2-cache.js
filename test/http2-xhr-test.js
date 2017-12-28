@@ -747,7 +747,7 @@ describe('http2-xhr', function () {
                 try {
                     var responseText = xhr.responseText;
                 } catch (err) {
-                    assert.equal(err instanceof InvalidStateError);
+                    assert.equal(err instanceof InvalidStateError, true);
                     done();   
                 }
             }
