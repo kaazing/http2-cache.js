@@ -94,7 +94,7 @@ describe('http-cache', function () {
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'no-store'});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
-                assert.equal(r, null); //it should be null
+                assert.equal(r, null);
                 done();
             });
         });
@@ -114,7 +114,7 @@ describe('http-cache', function () {
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'must-revalidate'});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
-                assert.equal(r, response1); //it should be null
+                assert.equal(r, response1); 
                 done();
            });
         });
