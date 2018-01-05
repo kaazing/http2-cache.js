@@ -87,8 +87,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
+                'cache-control': 'max-age=30', 
                 'date': new Date()
             }, 
             'statusCode': 200
@@ -108,8 +107,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
+                'cache-control': 'max-age=30', 
                 'date': new Date()
             }, 
             'statusCode': 200
@@ -172,6 +170,9 @@ describe('http-cache', function () {
         });
     });
 
+    /**  
+     * Commenting authorization tests due to tickets/issues/1244#issuecomment-355434303
+     * 
     it('Cache match when authorization header does match', function (done) {
         var cache = new Cache();
         var response1 = {
@@ -249,6 +250,7 @@ describe('http-cache', function () {
             });
         });
     });
+    */
 
     it('Cache update fail when no cachable statusCode provided after a cachable statusCode and return inital cached response', function (done) {
         var cache = new Cache();
