@@ -53,6 +53,7 @@
     "lib/"
   ],
   "exclude": [
+    "coverage",
     "example",
     "test",
     "integration-test",
