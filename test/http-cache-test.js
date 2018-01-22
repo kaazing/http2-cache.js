@@ -67,8 +67,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
+                'cache-control': 'max-age=30', 
                 'date': new Date()
             }, 
             'statusCode': 200
@@ -87,8 +86,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
+                'cache-control': 'max-age=30', 
                 'date': new Date()
             }, 
             'statusCode': 200
@@ -96,7 +94,7 @@ describe('http-cache', function () {
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'no-store'});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
-                assert.equal(r, response1); //it should be null
+                assert.equal(r, null);
                 done();
             });
         });
@@ -108,8 +106,7 @@ describe('http-cache', function () {
         var response1 = {
             'href': 'https://example.com/', 
             'headers': {
-                'cache-control': 
-                'max-age=30', 
+                'cache-control': 'max-age=30', 
                 'date': new Date()
             }, 
             'statusCode': 200
@@ -117,7 +114,7 @@ describe('http-cache', function () {
         var requestInfo = new RequestInfo("GET", "https://example.com/", {'cache-control': 'must-revalidate'});
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
-                assert.equal(r, response1); //it should be null
+                assert.equal(r, response1); 
                 done();
            });
         });
