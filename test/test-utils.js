@@ -124,6 +124,39 @@ function lengthInUtf8Bytes(str) {
   return str.length + (m ? m.length : 0);
 }
 
+
+var zlib = require('zlib');
+/**
+ * @param {http.ServerRequest} req
+ * @param {http.ServerResponse} res
+ * @return {boolean} Whether gzip encoding takes place
+ */
+function gzip(request, response, body) {
+    var acceptEncoding = request.headers['accept-encoding'];
+    if (!acceptEncoding) {
+        acceptEncoding = '';
+    }
+
+    // Note: this is not a conformant accept-encoding parser.
+    // See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
+    if (acceptEncoding.match(/\bdeflate\b/)) {
+        response.writeHead(200, Object.assign({
+                "Content-Type": 'text/plain; charset=utf-8',
+                "content-encoding": 'deflate'
+        }, defaultResponseHeaders));
+        response.end(zlib.createDeflateRaw(body).toString('utf8'));
+    } else if (acceptEncoding.match(/\bgzip\b/)) {
+        response.writeHead(200, Object.assign({
+                "Content-Type": 'text/plain; charset=utf-8',
+                "content-encoding": 'gzip'
+        }, defaultResponseHeaders));
+        response.end(zlib.createGzip(body).toString('utf8'));
+    } else {
+        response.writeHead(200, {});
+        response.end(body);
+    }
+};
+
 function _getConfigServer(options, onStart) {
 
     return http.createServer(function (request, response) {
@@ -176,6 +209,15 @@ function _getConfigServer(options, onStart) {
                 "Content-Type": 'text/plain; charset=utf-8'
             }, defaultResponseHeaders));
             response.end(charBody);
+
+        } else if (path.startsWith("/gzip/charof")) {
+
+            var charSize = parseInt(request.url.replace("/gzip/charof", ""), 10) || 8192;
+            var charBody = generateRandAlphaNumStr(charSize);
+            var charLength = lengthInUtf8Bytes(charBody);
+
+            gzip(request, response, charBody);
+
         } else {
             console.warn("Request for unknown path: " + path);
             response.writeHead(404);
