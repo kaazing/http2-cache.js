@@ -24,6 +24,43 @@ var configServerOps = {
 
 getConfigServer(configServerOps);
 
+var zlib = require('zlib');
+/**
+ * @param {http.ServerRequest} req
+ * @param {http.ServerResponse} res
+ * @return {boolean} Whether gzip encoding takes place
+ */
+var defaultResponseHeaders = {};
+function gzip(request, response, body) {
+    var acceptEncoding = request.headers['accept-encoding'];
+    if (!acceptEncoding) {
+        acceptEncoding = '';
+    }
+
+    // Note: this is not a conformant accept-encoding parser.
+    // See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
+    if (acceptEncoding.match(/\bdeflate\b/)) {
+        response.writeHead(200, Object.assign({
+                "Content-Type": 'text/plain; charset=utf-8',
+                "content-encoding": 'deflate'
+        }, defaultResponseHeaders));
+        var buf = Buffer.from(zlib.createDeflateRaw(body).toString('utf8'), 'utf8');
+        response.write(buf);
+    } else if (acceptEncoding.match(/\bgzip\b/)) {
+        response.writeHead(200, Object.assign({
+                "Content-Type": 'text/plain; charset=utf-8',
+                "content-encoding": 'gzip'
+        }, defaultResponseHeaders));
+        var buf = Buffer.from(zlib.createGzip(body).toString('utf8'), 'utf8');
+        response.write(buf);
+    } else {
+        response.writeHead(200, {
+            "Content-Type": 'text/plain; charset=utf-8'
+        });
+        var buf = Buffer.from(body, 'utf8');
+        response.write(buf);
+    }
+};
 
 getSocketServer(socketServerOps, function (request, response) {
 
@@ -36,6 +73,12 @@ getSocketServer(socketServerOps, function (request, response) {
         });
         var buf = Buffer.from(charBody, 'utf8');
         response.write(buf);
+        response.end();
+    } else if (request.url.startsWith("/gzip/charof")) {
+        var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
+        var charBody = generateRandAlphaNumStr(charSize);
+        var charLength = lengthInUtf8Bytes(charBody);
+        gzip(request, response, charBody);
         response.end();
     } else {
 
