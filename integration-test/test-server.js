@@ -33,7 +33,8 @@ getConfigServer(configServerOps);
 var defaultResponseHeaders = {};
 function send(request, response, body) {
     response.writeHead(200, Object.assign({
-        "Content-Type": 'text/plain; charset=utf-8'
+        "Content-Type": 'text/plain; charset=utf-8',
+        // TODO 'Content-Length' via lengthInUtf8Bytes ?
     }, defaultResponseHeaders));
     var buf = Buffer.from(body, 'utf8');
     response.write(buf);
@@ -54,36 +55,35 @@ function sendGzip(request, response, body) {
                 "Content-Type": 'text/plain; charset=utf-8',
                 "content-encoding": 'deflate'
         }, defaultResponseHeaders));
-        var buf = Buffer.from(zlib.createDeflateRaw(body).toString('utf8'), 'utf8');
-        response.write(buf);
+        body = Buffer.from(zlib.createDeflateRaw(body).toString('utf8'), 'utf8');
+        response.write(body);
         response.end();
     } else if (acceptEncoding.match(/\bgzip\b/)) {
         response.writeHead(200, Object.assign({
                 "Content-Type": 'text/plain; charset=utf-8',
                 "content-encoding": 'gzip'
         }, defaultResponseHeaders));
-        var buf = Buffer.from(zlib.createGzip(body).toString('utf8'), 'utf8');
-        response.write(buf);
+        body = Buffer.from(zlib.createGzip(body).toString('utf8'), 'utf8');
+        response.write(body);
         response.end();
     } else {
-        send(request, response, body)
+        send(request, response, body);
     }
-};
+}
 
 getSocketServer(socketServerOps, function (request, response) {
 
     if (request.url.startsWith("/charof")) {
-        var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
-        var charBody = generateRandAlphaNumStr(charSize);
-        var charLength = lengthInUtf8Bytes(charBody);
+        var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192,
+            charBody = generateRandAlphaNumStr(charSize),
+            charLength = lengthInUtf8Bytes(charBody);
         send(request, response, charBody);
 
     } else if (request.url.startsWith("/gzip/charof")) {
-        var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
-        var charBody = generateRandAlphaNumStr(charSize);
-        var charLength = lengthInUtf8Bytes(charBody);
+        var charGzipSize = parseInt(request.url.replace("/charof", ""), 10) || 8192,
+            charGzipBody = generateRandAlphaNumStr(charGzipSize);
         //send(request, response, charBody);
-        sendGzip(request, response, charBody);
+        sendGzip(request, response, charGzipBody);
     } else {
 
         var message = JSON.stringify(configServerOps.config);
