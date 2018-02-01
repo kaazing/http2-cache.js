@@ -24,14 +24,24 @@ var configServerOps = {
 
 getConfigServer(configServerOps);
 
-var zlib = require('zlib');
 /**
  * @param {http.ServerRequest} req
  * @param {http.ServerResponse} res
  * @return {boolean} Whether gzip encoding takes place
  */
+
 var defaultResponseHeaders = {};
-function gzip(request, response, body) {
+function send(request, response, body) {
+    response.writeHead(200, Object.assign({
+        "Content-Type": 'text/plain; charset=utf-8'
+    }, defaultResponseHeaders));
+    var buf = Buffer.from(body, 'utf8');
+    response.write(buf);
+    response.end();
+}
+
+var zlib = require('zlib');
+function sendGzip(request, response, body) {
     var acceptEncoding = request.headers['accept-encoding'];
     if (!acceptEncoding) {
         acceptEncoding = '';
@@ -46,6 +56,7 @@ function gzip(request, response, body) {
         }, defaultResponseHeaders));
         var buf = Buffer.from(zlib.createDeflateRaw(body).toString('utf8'), 'utf8');
         response.write(buf);
+        response.end();
     } else if (acceptEncoding.match(/\bgzip\b/)) {
         response.writeHead(200, Object.assign({
                 "Content-Type": 'text/plain; charset=utf-8',
@@ -53,12 +64,9 @@ function gzip(request, response, body) {
         }, defaultResponseHeaders));
         var buf = Buffer.from(zlib.createGzip(body).toString('utf8'), 'utf8');
         response.write(buf);
+        response.end();
     } else {
-        response.writeHead(200, {
-            "Content-Type": 'text/plain; charset=utf-8'
-        });
-        var buf = Buffer.from(body, 'utf8');
-        response.write(buf);
+        send(request, response, body)
     }
 };
 
@@ -68,18 +76,14 @@ getSocketServer(socketServerOps, function (request, response) {
         var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
         var charBody = generateRandAlphaNumStr(charSize);
         var charLength = lengthInUtf8Bytes(charBody);
-        response.writeHead(200, {
-            "Content-Type": 'text/plain; charset=utf-8'
-        });
-        var buf = Buffer.from(charBody, 'utf8');
-        response.write(buf);
-        response.end();
+        send(request, response, charBody);
+
     } else if (request.url.startsWith("/gzip/charof")) {
         var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
         var charBody = generateRandAlphaNumStr(charSize);
         var charLength = lengthInUtf8Bytes(charBody);
-        gzip(request, response, charBody);
-        response.end();
+        //send(request, response, charBody);
+        sendGzip(request, response, charBody);
     } else {
 
         var message = JSON.stringify(configServerOps.config);
