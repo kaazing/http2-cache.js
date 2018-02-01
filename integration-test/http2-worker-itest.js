@@ -202,7 +202,7 @@ describe('http2-cache', function () {
                 xhr.onerror = function (err) {
                     throw new TypeError('Network request failed');
                 };
-                xhr.open('GET', 'http://localhost:7080/gzip/charof' + largeRequestCharSize, true);
+                xhr.open('GET', 'http://cache-endpoint/gzip/charof' + largeRequestCharSize, true);
 
                 // not required to work, and cause
                 // http2-cache.js:2059 Refused to set unsafe header "accept-encoding"
