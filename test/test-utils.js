@@ -125,13 +125,19 @@ function lengthInUtf8Bytes(str) {
 }
 
 
+function sendResponse(request, response, body) {
+    response.writeHead(200, Object.assign({
+        "Content-Type": 'text/plain; charset=utf-8',
+        // TODO 'Content-Length' via lengthInUtf8Bytes ?
+    }, defaultResponseHeaders));
+    var buf = Buffer.from(body, 'utf8');
+    response.write(buf);
+    response.end();
+}
+
 var zlib = require('zlib');
-/**
- * @param {http.ServerRequest} req
- * @param {http.ServerResponse} res
- * @return {boolean} Whether gzip encoding takes place
- */
-function gzip(request, response, body) {
+function sendGzipResponse(request, response, body) {
+
     var acceptEncoding = request.headers['accept-encoding'];
     if (!acceptEncoding) {
         acceptEncoding = '';
@@ -141,21 +147,22 @@ function gzip(request, response, body) {
     // See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
     if (acceptEncoding.match(/\bdeflate\b/)) {
         response.writeHead(200, Object.assign({
-                "Content-Type": 'text/plain; charset=utf-8',
-                "content-encoding": 'deflate'
+            "Content-Type": 'text/plain; charset=utf-8',
+            "content-encoding": 'deflate'
         }, defaultResponseHeaders));
-        response.end(zlib.createDeflateRaw(body).toString('utf8'));
+        response.write(Buffer.from(zlib.deflateSync(body)));
+        response.end();
     } else if (acceptEncoding.match(/\bgzip\b/)) {
         response.writeHead(200, Object.assign({
-                "Content-Type": 'text/plain; charset=utf-8',
-                "content-encoding": 'gzip'
+            "Content-Type": 'text/plain; charset=utf-8',
+            "content-encoding": 'gzip'
         }, defaultResponseHeaders));
-        response.end(zlib.createGzip(body).toString('utf8'));
+        response.write(Buffer.from(zlib.gzipSync(body)));
+        response.end();
     } else {
-        response.writeHead(200, {});
-        response.end(body);
+        send(request, response, body);
     }
-};
+}
 
 function _getConfigServer(options, onStart) {
 
@@ -204,26 +211,19 @@ function _getConfigServer(options, onStart) {
             var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
             var charBody = generateRandAlphaNumStr(charSize);
             var charLength = lengthInUtf8Bytes(charBody);
-            console.log("Sending response of " + charLength + " bytes");
-            response.writeHead(200, Object.assign({
-                "Content-Type": 'text/plain; charset=utf-8'
-            }, defaultResponseHeaders));
-            response.end(charBody);
+            sendResponse(request, response, charBody);
 
         } else if (path.startsWith("/gzip/charof")) {
-
             var charSize = parseInt(request.url.replace("/gzip/charof", ""), 10) || 8192;
             var charBody = generateRandAlphaNumStr(charSize);
             var charLength = lengthInUtf8Bytes(charBody);
-
-            gzip(request, response, charBody);
+            sendGzipResponse(request, response, charBody);
 
         } else {
-            console.warn("Request for unknown path: " + path);
             response.writeHead(404);
             response.end("Not Found");
         }
-    }).listen(options.port, function (){
+    }).listen(options.port, function () {
         console.log("Listening on " + options.port);
         if (typeof onStart === 'function') {
             onStart();
@@ -256,6 +256,7 @@ function getConfigServer(options, onStart) {
     }
 }
 
+
 function getSocketServer(options, onRequest, onStart) {
     if (
         typeof window !== 'undefined' || 
@@ -267,10 +268,33 @@ function getSocketServer(options, onRequest, onStart) {
     }
 }
 
+function getSocketTestServer(options, onStart) {
+    return getSocketServer(options, function (request, response) {
+
+        if (request.url.startsWith("/charof")) {
+            var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192,
+                charBody = generateRandAlphaNumStr(charSize),
+                charLength = lengthInUtf8Bytes(charBody);
+            sendResponse(request, response, charBody);
+        } else if (request.url.startsWith("/gzip/charof")) {
+            var charGzipSize = parseInt(request.url.replace("/charof", ""), 10) || 8192,
+                charGzipBody = generateRandAlphaNumStr(charGzipSize);
+            //send(request, response, charBody);
+            sendGzipResponse(request, response, charGzipBody);
+        } else {
+            response.writeHead(404);
+            response.end("Not Found");
+        }
+    }, onStart);
+}
+
 module.exports = {
+    sendResponse: sendResponse,
+    sendGzipResponse: sendGzipResponse,
     generateRandAlphaNumStr: generateRandAlphaNumStr,
     lengthInUtf8Bytes: lengthInUtf8Bytes,
     unicodeStringToTypedArray: unicodeStringToTypedArray,
     getConfigServer: getConfigServer,
+    getSocketTestServer: getSocketTestServer,
     getSocketServer: getSocketServer
 };
