@@ -11,6 +11,7 @@ if (typeof XMLHttpRequest === 'undefined') {
 require("../lib/http2-cache");
 
 var FormData = require("../lib/form-data").FormData,
+    InvalidStateError = require('../lib/errors.js').InvalidStateError,
     getSocketServer = require('./test-utils.js').getSocketServer,
     getConfigServer = require('./test-utils').getConfigServer,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
@@ -714,7 +715,7 @@ describe('http2-xhr', function () {
         });
     });
 
-    it('should return Throw DOMException when responseText is used with invalid responseType', function (done) {
+    it('should return Throw InvalidStateError when responseText is used with invalid responseType', function (done) {
         
         var message = '{"message": "Hello, Dave. You\'re looking well today."}';
         var date =  new Date().toString();
@@ -744,8 +745,9 @@ describe('http2-xhr', function () {
                 assert.equal(xhr.responseType, 'json');
                 assert.equal(typeof xhr.response, 'object');
                 try {
-                    assert.equal(xhr.responseText);
+                    var responseText = xhr.responseText;
                 } catch (err) {
+                    assert.equal(err instanceof InvalidStateError, true);
                     done();   
                 }
             }
