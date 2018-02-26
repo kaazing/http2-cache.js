@@ -1,4 +1,4 @@
-/* global */
+/* global require */
 var chai = require('chai');
 var assert = chai.assert;
 
@@ -10,8 +10,6 @@ if (typeof XMLHttpRequest === 'undefined') {
 require("../lib/http2-cache");
 
 var assert = require('assert'),
-    http = require('http'),
-    http2 = require('http2.js'),
     getSocketServer = require('./test-utils.js').getSocketServer,
     getConfigServer = require('./test-utils').getConfigServer;
 
@@ -511,16 +509,16 @@ describe('http2-push', function () {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetRequestAfterFailure');
                 
-                pr = response.push({
+                var pr2 = response.push({
                     'path': '/cachedGetRequestAfterFailure',
                     'protocol': 'http:'
                 });
-                pr.setHeader('Content-Type', 'text/html');
-                pr.setHeader('Content-Length', messages[2].length);
-                pr.setHeader('Cache-Control', 'max-age=500');
-                pr.setHeader('Date', new Date());
-                pr.write(messages[2]);
-                pr.end();
+                pr2.setHeader('Content-Type', 'text/html');
+                pr2.setHeader('Content-Length', messages[2].length);
+                pr2.setHeader('Cache-Control', 'max-age=500');
+                pr2.setHeader('Date', new Date());
+                pr2.write(messages[2]);
+                pr2.end();
 
             } else {
                 throw new Error("Should only get 1 request");
