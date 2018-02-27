@@ -47,7 +47,7 @@ XMLHttpRequest.proxy([urls of configurations])
 The `proxy([urls of configurations])` triggers fetching of JSON configurations on the backend
 server.  The configurations should be of the following form:
 
-```json
+```
 {
     // Logger debugLevel true='info' or (info|debug|trace)
     "clientLogLevel": false,
@@ -59,9 +59,9 @@ server.  The configurations should be of the following form:
     "reconnect": true,
     "reconnectInterval": 100,
     "maximumReconnectInterval": 4000,
-    // AccelerationStrategy could be "always"  or "connected"
-    // Value always means always/don't make requests if they are proxied but no ws connection is open. Wait for the connection to open instead.
-    // Value connected means make requests when connected via websocket.
+    // AccelerationStrategy default to "always" can be "connected"
+    // - Value "always" means always/don't make requests if they are proxied but no ws connection is open. 
+    // - Value "connected" means make requests when connected via websocket.
     "accelerationStrategy": "always",
     "proxy": [
       "http://origin-to-send-via-http2:80/path/",
