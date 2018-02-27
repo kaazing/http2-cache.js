@@ -47,7 +47,7 @@ XMLHttpRequest.proxy([urls of configurations])
 The `proxy([urls of configurations])` triggers fetching of JSON configurations on the backend
 server.  The configurations should be of the following form:
 
-```json
+```
 {
     // Logger debugLevel true='info' or (info|debug|trace)
     "clientLogLevel": false,
