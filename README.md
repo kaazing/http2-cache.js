@@ -80,7 +80,7 @@ server.  The configurations should be of the following form:
 
 In full
 
-```
+```html
 <script type="text/javascript" src="http2-cache.js"></script>
 <script type="text/javascript">
     XMLHttpRequest.proxy(["http://localhost:8000/config"]);
