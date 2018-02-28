@@ -91,11 +91,13 @@ In full
 
 The integration tests require Java JDK 8 be installed.
 
-```
+```bash
 npm i
 npm run build
 ```
 
 ### Integration Tests
 
+```bash
 npm run test:browser
+```
