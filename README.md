@@ -1,6 +1,10 @@
-[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=develop)](http://travis-ci.org/kaazing/http2-cache.js)
 
 # http2-cache.js
+
+[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=develop)](http://travis-ci.org/kaazing/http2-cache.js)
+
+[![npm version](https://img.shields.io/npm/v/http2-cache.svg?style=flat)](https://www.npmjs.com/package/http2-cache)
+
 
 #### This library is pre 1.0.0, much of the functionality is not yet fully implemented.
 
