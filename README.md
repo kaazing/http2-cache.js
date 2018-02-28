@@ -5,6 +5,7 @@
 
 [![npm version](https://img.shields.io/npm/v/http2-cache.svg?style=flat)](https://www.npmjs.com/package/http2-cache)
 
+Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets
 
 #### This library is pre 1.0.0, much of the functionality is not yet fully implemented.
 
