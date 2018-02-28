@@ -7,6 +7,8 @@
 
 Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets
 
+### Warning
+
 #### This library is pre 1.0.0, much of the functionality is not yet fully implemented.
 
 This library provides a user-space based HTTP/2 client implementation and cache that slots
@@ -90,33 +92,10 @@ In full
 The integration tests require Java JDK 8 be installed.
 
 ```
-npm install
+npm i
+npm run build
 ```
-
-### Browser Compatibility 
-
-TODO automation tests and testing in full, currently have checked chrome and firefox latest by hand.
-
-### Native Browser Implementations
-
-The example directory contains a simple Web App which tests whether the browser
-supports native HTTP2 push with SPEC compliant caching.
-
-
-Start origin
-```
-http-server -c-1
-```
-
-Start data server
-```
- node server.js 
-```
-
-Visit page `https://localhost:8080/` (Note: need to trust TLS cert)
-
-
 
 ### Integration Tests
 
-TODO -- These tests are not complete. 
+npm run test:browser
