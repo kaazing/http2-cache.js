@@ -48,17 +48,27 @@ The `proxy([urls of configurations])` triggers fetching of JSON configurations o
 server.  The configurations should be of the following form:
 
 ```
-    {  
-       "push": "optional-path-that-is-opened-for-pushes",
-       "transport": "wss://where-the-underlying-ws-transport-connects:443/",
-       "clientLogLevel": "debug",
-       "proxy":[  
-          "http://origin-to-send-via-http2:80/path/",
-          "http://origin-to-send-via-http2:80/path2/",
-          "http://other-origin-to-send-via-http2:80"
-       ]
-    }
-
+{
+    // Logger debugLevel true='info' or (info|debug|trace)
+    "clientLogLevel": false,
+    // Transport endpoint
+    "transport": "wss://where-the-underlying-ws-transport-connects:443/",
+    // Transport push path
+    "push": "optional-path-that-is-opened-for-pushes",
+    // Transport reconnect settings
+    "reconnect": true,
+    "reconnectInterval": 100,
+    "maximumReconnectInterval": 4000,
+    // AccelerationStrategy default to "always" can be "connected"
+    // - Value "always" means always/don't make requests if they are proxied but no ws connection is open. 
+    // - Value "connected" means make requests when connected via websocket.
+    "accelerationStrategy": "always",
+    "proxy": [
+      "http://origin-to-send-via-http2:80/path/",
+      "http://origin-to-send-via-http2:80/path2/",
+      "http://other-origin-to-send-via-http2:80"
+    ]
+}
 ```
 
 In full
