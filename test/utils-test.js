@@ -9,6 +9,13 @@ var mergeTypedArrays = require('../lib/utils').mergeTypedArrays,
 
 var assert = require('assert');
 
+/* jshint ignore:start */
+if (typeof XMLHttpRequest === 'undefined') {
+    XMLHttpRequest = require("xhr2").XMLHttpRequest;   
+}
+/* jshint ignore:end */
+require("../lib/http2-cache");
+
 describe('utils', function () {
 
 	describe('parseUrl', function () {
@@ -85,7 +92,15 @@ describe('utils', function () {
 	        formData.append('username', 'Chris');
 	        formData.append('username', 'Bob');
 	        formData.append('gender', 'male');  
-	        assert.equal(serializeXhrBody({}, formData), "username=Chris&username=Bob&gender=male");
+
+	        var headers = new Map();
+	        var seed = (+(new Date())).toString(16);
+
+	        assert.equal(serializeXhrBody(headers, formData, seed), 
+	        	'\r\n------webkitformboundary' + seed + 
+        		'\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
+	        	'\r\nContent-Disposition: form-data; name="username"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
+	        	'\r\nContent-Disposition: form-data; name="gender"\r\n\r\nmale\r\n------webkitformboundary' + seed + '--');
 	    });
 	});
 });
