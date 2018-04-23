@@ -445,7 +445,7 @@ describe('http2-xhr', function () {
         formData.append('lastname', 'Bob');
         formData.append('gender', 'male');  
 
-        var seed = formData.seed = (+(new Date()) + 3).toString(16);
+        var seed = formData._TestBoundary = (+(new Date()) + 3).toString(16);
 
         var requestCount = 0;
         socketOnRequest = function (request, response) {

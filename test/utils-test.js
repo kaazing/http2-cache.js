@@ -94,9 +94,9 @@ describe('utils', function () {
 	        formData.append('gender', 'male');  
 
 	        var headers = new Map();
-	        var seed = (+(new Date())).toString(16);
+	        var seed = formData._TestBoundary = (+(new Date())).toString(16);
 
-	        assert.equal(serializeXhrBody(headers, formData, seed), 
+	        assert.equal(serializeXhrBody(headers, formData), 
 	        	'\r\n------webkitformboundary' + seed + 
         		'\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
 	        	'\r\nContent-Disposition: form-data; name="username"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
