@@ -437,13 +437,15 @@ describe('http2-xhr', function () {
         xhr2.send(formData);
     });
 
-    xit('should only proxy path match POST requests (multipart/form-data)', function (done) {
+    it('should only proxy path match POST requests (multipart/form-data)', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     
         var formData = new FormData();
         formData.append('username', 'Chris');
         formData.append('lastname', 'Bob');
         formData.append('gender', 'male');  
+
+        var seed = formData.seed = (+(new Date()) + 3).toString(16);
 
         var requestCount = 0;
         socketOnRequest = function (request, response) {
@@ -459,9 +461,7 @@ describe('http2-xhr', function () {
                     // at this point, `body` has the entire request body stored in it as a string
                     body = Buffer.concat(body).toString();
 
-                    var seed = (+(new Date())).toString(16);
-                    assert.equal(
-                        '\r\n------webkitformboundary' + seed + 
+                    assert.equal('\r\n------webkitformboundary' + seed + 
                         '\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
                         '\r\nContent-Disposition: form-data; name="lastname"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
                         '\r\nContent-Disposition: form-data; name="gender"\r\n\r\nmale\r\n------webkitformboundary' + seed + '--', body);
@@ -478,6 +478,7 @@ describe('http2-xhr', function () {
         };
 
         var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
 
         var doneCnt = 0;
 
@@ -494,8 +495,11 @@ describe('http2-xhr', function () {
                 assert.equal("OK", xhr.statusText);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
-                assert.equal("username=Chris&lastname=Bob&gender=male", xhr.responseText);
-                doneN(3);
+                assert.equal('\r\n------webkitformboundary' + seed + 
+                        '\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
+                        '\r\nContent-Disposition: form-data; name="lastname"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
+                        '\r\nContent-Disposition: form-data; name="gender"\r\n\r\nmale\r\n------webkitformboundary' + seed + '--', xhr.responseText);
+                doneN(2);
             }
         };
 
@@ -503,11 +507,12 @@ describe('http2-xhr', function () {
             xhr.onprogress = function () {
                 xhr.onload = function () {
                     xhr.onloadend = function () {
-                        doneN(3);
+                        doneN(2);
                     };
                 };
             };
         };
+  
 
         xhr.open('POST', 'http://localhost:7080/path/proxy', true);
         xhr.send(formData);
