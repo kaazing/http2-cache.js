@@ -1,6 +1,11 @@
 Version history
 ===============
 
+### 0.2.10
+
+- Fix FormData 'multipart/form-data' boundary support.
+  Note: FormData limited support, only string supported
+
 ### 0.2.8
 
 - Implement AccelerationStrategy default to "always" can be "connected"
