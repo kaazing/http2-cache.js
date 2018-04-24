@@ -170,6 +170,21 @@ describe('http2-proxy', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config", "http://localhost:7090/config"]);
     });
 
+    it('should fail to load inline configs without effect on future api usage', function (done) {
+        XMLHttpRequest.proxy(
+            [
+                {
+                    "push": "",
+                    "transport": "",
+                    // TODO why clientLogLevel on NodeJS Cause "Uncaught Error: Should only proxy '/path/proxy' not '/stream'"
+                    //"clientLogLevel": "info",
+                    "proxy": []
+                }
+            ]
+        );
+        done();
+    });
+
     it('should load inline configs', function (done) {
         XMLHttpRequest.proxy(
             [

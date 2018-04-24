@@ -1,6 +1,13 @@
-[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=develop)](http://travis-ci.org/kaazing/http2-cache.js)
 
 # http2-cache.js
+
+[![Build Status](https://travis-ci.org/kaazing/http2-cache.js.svg?branch=develop)](http://travis-ci.org/kaazing/http2-cache.js)
+
+[![npm version](https://img.shields.io/npm/v/http2-cache.svg?style=flat)](https://www.npmjs.com/package/http2-cache)
+
+Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets
+
+### Warning
 
 #### This library is pre 1.0.0, much of the functionality is not yet fully implemented.
 
@@ -73,7 +80,7 @@ server.  The configurations should be of the following form:
 
 In full
 
-```
+```html
 <script type="text/javascript" src="http2-cache.js"></script>
 <script type="text/javascript">
     XMLHttpRequest.proxy(["http://localhost:8000/config"]);
@@ -84,34 +91,13 @@ In full
 
 The integration tests require Java JDK 8 be installed.
 
+```bash
+npm i
+npm run build
 ```
-npm install
-```
-
-### Browser Compatibility 
-
-TODO automation tests and testing in full, currently have checked chrome and firefox latest by hand.
-
-### Native Browser Implementations
-
-The example directory contains a simple Web App which tests whether the browser
-supports native HTTP2 push with SPEC compliant caching.
-
-
-Start origin
-```
-http-server -c-1
-```
-
-Start data server
-```
- node server.js 
-```
-
-Visit page `https://localhost:8080/` (Note: need to trust TLS cert)
-
-
 
 ### Integration Tests
 
-TODO -- These tests are not complete. 
+```bash
+npm run test:browser
+```
