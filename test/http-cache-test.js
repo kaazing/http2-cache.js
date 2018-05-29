@@ -169,7 +169,8 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache match when authorization header does match', function (done) {
+    
+    it.skip('Cache match when authorization header does match', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/',
@@ -194,7 +195,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache match fail when authorization header does not match, unless cache-control: public', function (done) {
+    it.skip('Cache match fail when authorization header does not match, unless cache-control: public', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/public',
@@ -222,7 +223,7 @@ describe('http-cache', function () {
 
 
     //this should not work
-    it('Cache match fail when authorization header does not match and cache-control is private', function (done) {
+    it.skip('Cache match fail when authorization header does not match and cache-control is private', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/private',
