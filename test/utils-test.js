@@ -92,24 +92,14 @@ describe('utils', function () {
         });
     });
 
-    describe('serializeXhrBody', function () {
-        it('should merge serialize Xhr Body', function () {
-            var formData = new FormData();
-            formData.append('username', 'Chris');
-            formData.append('username', 'Bob');
-            formData.append('gender', 'male');  
-            assert.equal(serializeXhrBody({}, formData), "username=Chris&username=Bob&gender=male");
-        });
-    });
-
 	describe('serializeXhrBody', function () {
 		it('should merge serialize Xhr Body', function () {
+	        var headers = new Map();
 		 	var formData = new FormData();
 	        formData.append('username', 'Chris');
 	        formData.append('username', 'Bob');
 	        formData.append('gender', 'male');  
 
-	        var headers = new Map();
 	        var seed = formData._TestBoundary = (+(new Date())).toString(16);
 
 	        assert.equal(serializeXhrBody(headers, formData), 
