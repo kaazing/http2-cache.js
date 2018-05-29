@@ -1,109 +1,59 @@
 /* global console */
 
 
-/* jshint ignore:start */
-if (typeof exports !== 'undefined') {
-    if (typeof XMLHttpRequest === 'undefined') {
-        XMLHttpRequest = require("xhr2").XMLHttpRequest;
-    }
-} else {
-    XMLHttpRequest = Window.XMLHttpRequest;
-}
-/* jshint ignore:end */
-
-var assert = require('assert');
-var http = require('http');
-
-require("../lib/http2-cache.js");
-
 describe('http2-proxy', function () {
+    
+    it('should attempt proxyfied GET request and fallback', function (done) {
 
-    var configServer;
-
-    before(function (done) {
-        configServer = http.createServer(function (request, response) {
-            response.writeHead(200, {'Content-Type': 'application/json'});
-            response.end(JSON.stringify({
-                'url': 'http://localhost:8080/',
-                'options': {
-                    'transport': 'tcp://localhost:8080',
-                    'debug': 'true'
-                }
-            }));
-        });
-        configServer.listen(8081, done);
-    });
-
-    after(function (done) {
-        configServer.close(done);
-    });
-
-    it('should.cache.push.promise', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
-
-        function fetchCachedPush() {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "http://localhost:8080/");
-            xhr.addEventListener("load", function () {
-                console.log("DPW: here " + xhr.responseText);
-                done();
-            });
-            xhr.send();
-        }
-
+        XMLHttpRequest.configuration.options.accelerationStrategy = 'connected';
+      
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
-        xhr.addEventListener("load", function () {
-            console.log("DPW: here " + xhr.responseText);
-            fetchCachedPush();
-        });
-        xhr.open("GET", "http://localhost:8080/data");
-        xhr.send();
+
+        var statechanges = 0;
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        done();
+                    };
+                };
+            };
+        };
+
+        xhr.onerror = function (err) {
+             throw err;
+        };
+
+        xhr.open('GET', 'http://localhost:7080/path/proxy', true);
+        xhr.send(null);
     });
 
-    it('should.be.able.to.make.two.requests', function (done) {
-        XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
+    it('should attempt proxyfied GET request and trigger error', function (done) {
 
-        function fetchSecondTime() {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "http://localhost:8080/data");
-            xhr.addEventListener("load", function () {
-                console.log("DPW: here " + xhr.responseText);
-                done();
-            });
-            xhr.send();
-        }
-
+        XMLHttpRequest.configuration.options.accelerationStrategy = 'always';
+      
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
-        xhr.addEventListener("load", function () {
-            console.log("DPW: here " + xhr.responseText);
-            fetchSecondTime();
-        });
-        xhr.open("GET", "http://localhost:8080/data");
-        xhr.send();
-    });
 
-    // it('should.poll.and.get.h2.push', function (done) {
-    //     XMLHttpRequest.proxy(["http://localhost:8081/config1"]);
-    //
-    //     // function fetchSecondTime() {
-    //     //     var xhr = new XMLHttpRequest();
-    //     //     xhr.open("GET", "http://localhost:8080/data");
-    //     //     xhr.addEventListener("load", function () {
-    //     //         console.log("DPW: here " + xhr.responseText);
-    //     //         done();
-    //     //     });
-    //     //     xhr.send();
-    //     // }
-    //
-    //     var xhr = new XMLHttpRequest();
-    //     xhr.addEventListener("load", function () {
-    //         console.log("DPW: here " + xhr.responseText);
-    //         // fetchSecondTime();
-    //     });
-    //     xhr.open("GET", "http://localhost:8080/data");
-    //     xhr.setRequestHeader("x-poll-interval", "2");
-    //     xhr.send();
-    // });
+        var statechanges = 0;
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        throw new Error('Should not reach onloadend');
+                    };
+                };
+            };
+        };
+
+        xhr.onerror = function (err) {
+            done();
+        };
+
+        xhr.open('GET', 'http://localhost:7080/path/proxy', true);
+        xhr.send(null);
+    });
 
 });
 

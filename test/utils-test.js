@@ -11,6 +11,13 @@ var mergeTypedArrays = require('../lib/utils').mergeTypedArrays,
 
 var assert = require('assert');
 
+/* jshint ignore:start */
+if (typeof XMLHttpRequest === 'undefined') {
+    XMLHttpRequest = require("xhr2").XMLHttpRequest;   
+}
+/* jshint ignore:end */
+require("../lib/http2-cache");
+
 describe('utils', function () {
 
     describe('runningInWorker', function () {
@@ -94,4 +101,22 @@ describe('utils', function () {
             assert.equal(serializeXhrBody({}, formData), "username=Chris&username=Bob&gender=male");
         });
     });
+
+	describe('serializeXhrBody', function () {
+		it('should merge serialize Xhr Body', function () {
+		 	var formData = new FormData();
+	        formData.append('username', 'Chris');
+	        formData.append('username', 'Bob');
+	        formData.append('gender', 'male');  
+
+	        var headers = new Map();
+	        var seed = formData._TestBoundary = (+(new Date())).toString(16);
+
+	        assert.equal(serializeXhrBody(headers, formData), 
+	        	'\r\n------webkitformboundary' + seed + 
+        		'\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
+	        	'\r\nContent-Disposition: form-data; name="username"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
+	        	'\r\nContent-Disposition: form-data; name="gender"\r\n\r\nmale\r\n------webkitformboundary' + seed + '--');
+	    });
+	});
 });

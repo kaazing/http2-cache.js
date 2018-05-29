@@ -344,13 +344,14 @@ describe('http2-xhr', function () {
         xhr2.send(null);
     });
 
-    it('should only proxy path match POST requests', function (done) {
+    it('should only proxy path match POST requests (application/x-www-form-urlencoded)', function (done) {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     
-        var formData = new FormData();
-        formData.append('username', 'Chris');
-        formData.append('username', 'Bob');
-        formData.append('gender', 'male');  
+        var formData = {
+            username: "Chris",
+            lastname: "Bob",
+            gender: "male",
+        };
 
         var requestCount = 0;
         socketOnRequest = function (request, response) {
@@ -366,7 +367,7 @@ describe('http2-xhr', function () {
                     // at this point, `body` has the entire request body stored in it as a string
                     body = Buffer.concat(body).toString();
 
-                    assert.equal("username=Chris&username=Bob&gender=male", body);
+                    assert.equal("username=Chris&lastname=Bob&gender=male", body);
 
                     response.setHeader('Content-Type', 'text/html');
                     response.setHeader('Content-Length', body.length);
@@ -397,7 +398,7 @@ describe('http2-xhr', function () {
                 assert.equal("OK", xhr.statusText);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
-                assert.equal("username=Chris&username=Bob&gender=male", xhr.responseText);
+                assert.equal("username=Chris&lastname=Bob&gender=male", xhr.responseText);
                 doneN(3);
             }
         };
@@ -421,16 +422,100 @@ describe('http2-xhr', function () {
             }
             if (xhr2.readyState === 4 && xhr2.status === 200) {
                 xhr2.addEventListener('load', function () {
-                    assert.equal("username=Chris&username=Bob&gender=male", xhr2.responseText);
+                    assert.equal("username=Chris&lastname=Bob&gender=male", xhr2.responseText);
                     doneN(3);
                 });
             }
-        };      
+        };          
+
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.open('POST', 'http://localhost:7080/path/proxy', true);
+        xhr.send(formData);
+
+        xhr2.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr2.open('POST', 'http://localhost:7080/path/notproxy?query=1', true);
+        xhr2.send(formData);
+    });
+
+    it('should only proxy path match POST requests (multipart/form-data)', function (done) {
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+    
+        var formData = new FormData();
+        formData.append('username', 'Chris');
+        formData.append('lastname', 'Bob');
+        formData.append('gender', 'male');  
+
+        var seed = formData._TestBoundary = (+(new Date()) + 3).toString(16);
+
+        var requestCount = 0;
+        socketOnRequest = function (request, response) {
+            if (++requestCount === 1) {
+                assert.equal(request.url, '/path/proxy');
+                assert.equal(request.method, 'POST');
+
+                var body = [];
+                request.on('data', function(chunk) {
+                  body.push(chunk);
+                }).on('end', function() {
+
+                    // at this point, `body` has the entire request body stored in it as a string
+                    body = Buffer.concat(body).toString();
+
+                    assert.equal('\r\n------webkitformboundary' + seed + 
+                        '\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
+                        '\r\nContent-Disposition: form-data; name="lastname"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
+                        '\r\nContent-Disposition: form-data; name="gender"\r\n\r\nmale\r\n------webkitformboundary' + seed + '--', body);
+
+                    response.setHeader('Content-Type', 'text/html');
+                    response.setHeader('Content-Length', body.length);
+                    response.setHeader('Cache-Control', 'private, max-age=0');
+                    response.write(body);
+                    response.end();
+                });
+            } else {
+                throw new Error("Should only proxy '/path/proxy' not '" + request.url + "'");
+            }
+        };
+
+        var xhr = new XMLHttpRequest();
+        var xhr2 = new XMLHttpRequest();
+
+        var doneCnt = 0;
+
+        function doneN(n) {
+            if (++doneCnt === n) {
+                done();
+            }
+        }
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState >= 2) {
+                assert.equal(200, xhr.status);
+                assert.equal("OK", xhr.statusText);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal('\r\n------webkitformboundary' + seed + 
+                        '\r\nContent-Disposition: form-data; name="username"\r\n\r\nChris\r\n------webkitformboundary' + seed + 
+                        '\r\nContent-Disposition: form-data; name="lastname"\r\n\r\nBob\r\n------webkitformboundary' + seed +  
+                        '\r\nContent-Disposition: form-data; name="gender"\r\n\r\nmale\r\n------webkitformboundary' + seed + '--', xhr.responseText);
+                doneN(2);
+            }
+        };
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    xhr.onloadend = function () {
+                        doneN(2);
+                    };
+                };
+            };
+        };
+  
 
         xhr.open('POST', 'http://localhost:7080/path/proxy', true);
         xhr.send(formData);
-        xhr2.open('POST', 'http://localhost:7080/path/notproxy?query=1', true);
-        xhr2.send(formData);
     });
 
     it('should cache GET request and reuse (with default port)', function (done) {
