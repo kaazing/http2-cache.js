@@ -1,9 +1,9 @@
-/* global console */
+/* globals chai:true */
 var assert = chai.assert;
 
 describe('http2-proxy', function () {
 
-    xdescribe('accelerationStrategy', function () {
+    describe('accelerationStrategy', function () {
         
         it('should attempt proxyfied GET request and fallback', function (done) {
 
