@@ -224,15 +224,6 @@ describe('http2-proxy', function () {
                 return output;
             }
 
-            function str2ab(str) {
-              var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
-              var bufView = new Uint16Array(buf);
-              for (var i=0, strLen=str.length; i<strLen; i++) {
-                bufView[i] = str.charCodeAt(i);
-              }
-              return buf;
-            }
-
             var statechanges = 0;
             xhr.onloadstart = function () {
                 xhr.onprogress = function () {
@@ -282,15 +273,6 @@ describe('http2-proxy', function () {
                 }
                 // You may create an ArrayBuffer from a standard array (of values) as follows:
                 return new Uint8Array( arr ).buffer;
-            }
-
-            function str2ab(str) {
-              var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
-              var bufView = new Uint16Array(buf);
-              for (var i=0, strLen=str.length; i<strLen; i++) {
-                bufView[i] = str.charCodeAt(i);
-              }
-              return buf;
             }
 
             var statechanges = 0;
