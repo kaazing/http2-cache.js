@@ -98,6 +98,44 @@ describe('http2-proxy', function () {
             xhr.open('GET', imageUrl, true);
             xhr.send(null);
         });
+
+        it('should GET request with blob and render image', function (done) {
+            var xhr = new XMLHttpRequest();
+            xhr.responseType = 'blob';
+
+            var statechanges = 0;
+            xhr.onloadstart = function () {
+                xhr.onprogress = function () {
+                    xhr.onload = function () {
+                        xhr.onloadend = function () {
+                            assert.equal(xhr.status, 200);
+                            assert.equal(typeof xhr.response, 'object');
+                            assert.equal(xhr.getResponseHeader('content-type'), 'image/png; charset=utf-8');
+
+                            var url = URL.createObjectURL(xhr.response);
+
+                            var img = document.createElement('img');
+                            img.src = url;
+                            img.onload = function () {
+                                done();
+                            };
+                            img.onerror = function () {
+                                throw Error('Unable to laod image');
+                            };
+                            document.body.appendChild(img);
+                        };
+                    };
+                };
+            };
+
+            xhr.onerror = function (err) {
+                 throw err;
+            };  
+
+            var imageUrl = './assets/cc83018365788ae445c3afd31aca20be.png';
+            xhr.open('GET', imageUrl, true);
+            xhr.send(null);
+        });
     });
 });
 
