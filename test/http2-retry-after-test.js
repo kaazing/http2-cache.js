@@ -61,15 +61,14 @@ describe('http2-xhr', function () {
         socket.close(done);
     });
 
-    it('should proxy GET request with event listeners', function (done) {
+    it('does a request and gets a response for statusCode 200 without `retry-after` header', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         socketOnRequest = function (request, response) {
-            // TODO check request headers and requests responses
             // TODO check request headers and requests responses
             assert.equal(request.url, '/withListeners');
             response.setHeader('Cache-Control', 'private, max-age=0');
             response.writeHead(200, {
-                'Content-Type': 'text/html',
+                'Content-Type': 'text/plain',
                 'Content-Length': message.length
             });
             response.write(message);
@@ -96,16 +95,14 @@ describe('http2-xhr', function () {
         xhr.send(null);
     });
 
-    it('should proxy GET request with event listeners in case of 503', function (done) {
+    it('does a request and gets a response for statusCode 503 without `retry-after` header', function (done) {
         var message = "Hello, Dave. You're looking well today.";
         socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
-            // TODO check request headers and requests responses
             assert.equal(request.url, '/retryAfter');
             response.writeHead(503, {
-                'Content-Type': 'text/html',
-                'Content-Length': message.length,
-                'Retry-After': 100
+                'Content-Type': 'text/plain',
+                'Content-Length': message.length
             });
             response.write(message);
             response.end();
@@ -118,7 +115,52 @@ describe('http2-xhr', function () {
                 xhr.onload = function () {
                     assert.equal(xhr.status, 503);
                     assert.equal(xhr.statusText, "Service Unavailable");
-                    assert.equal(xhr.getResponseHeader('retry-after'), 100);
+                    //assert.equal(xhr.getResponseHeader('retry-after'), 5);
+                    xhr.onloadend = function () {
+                        assert.equal(xhr.response, message);
+                        done();
+                    };
+                };
+            };
+        };
+
+        xhr.open('GET', 'http://cache-endpoint2/retryAfter', true);
+
+        xhr.send(null);
+    });
+
+    it('does a request and gets a response statusCode 200 with `retry-after` header in seconds and statusCode 503', function (done) {
+        
+        var retryAfterDelay = 5;
+        var retryAfterDelayMs = retryAfterDelay * 1000;
+        var restartDate = (Date.now() + retryAfterDelayMs);
+
+        var message = "Hello, Dave. You're looking well today.";
+        var errorMessage = 'Service is NOT available';
+        socketOnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            var requestDate = Date.now();
+            assert.equal(request.url, '/retryAfter');
+            
+            if (requestDate < restartDate) {
+            response.setHeader('retry-after', retryAfterDelay);
+            response.writeHead(503);
+            response.write(errorMessage);
+            response.end(); 
+          } else {
+            response.writeHead(200);
+            response.write(message);
+            response.end(); 
+          }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        xhr.onloadstart = function () {
+            xhr.onprogress = function () {
+                xhr.onload = function () {
+                    assert.equal(xhr.status, 200);
+                    assert.equal(xhr.statusText, "Service Unavailable");
                     xhr.onloadend = function () {
                         assert.equal(xhr.response, message);
                         done();
