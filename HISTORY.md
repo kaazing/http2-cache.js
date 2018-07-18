@@ -1,6 +1,10 @@
 Version history
 ===============
 
+### 0.2.11 (2018-07-18)
+
+* Update to http2.js 4.0.3 to add support on request for `retry-after` header on `503|429|302` status code.
+
 ### 0.2.10
 
 - Fix FormData 'multipart/form-data' boundary support.
