@@ -17,7 +17,7 @@ var FormData = require("../lib/form-data").FormData,
     generateRandAlphaNumStr = require('./test-utils').generateRandAlphaNumStr,
     lengthInUtf8Bytes = require('./test-utils').lengthInUtf8Bytes;
 
-describe('http2-xhr', function () {
+describe('http2-xhr-retry-after', function () {
 
     var config = {
         'transport': 'ws://localhost:7081/path',
@@ -62,10 +62,11 @@ describe('http2-xhr', function () {
     });
 
     it('does a request and gets a response for statusCode 200 without `retry-after` header', function (done) {
+        var path = '/retryAfter';
         var message = "Hello, Dave. You're looking well today.";
         socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
-            assert.equal(request.url, '/withListeners');
+            assert.equal(request.url, path);
             response.setHeader('Cache-Control', 'private, max-age=0');
             response.writeHead(200, {
                 'Content-Type': 'text/plain',
@@ -90,21 +91,22 @@ describe('http2-xhr', function () {
             };
         };
 
-        xhr.open('GET', 'http://cache-endpoint2/withListeners', true);
+        xhr.open('GET', 'http://cache-endpoint2' + path, true);
 
         xhr.send(null);
     });
 
     it('does a request and gets a response for statusCode 503 without `retry-after` header', function (done) {
-        var message = "Hello, Dave. You're looking well today.";
+        var path = '/retryAfter';
+        var errorMessage = 'Service is NOT available';
         socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
-            assert.equal(request.url, '/retryAfter');
+            assert.equal(request.url, path);
             response.writeHead(503, {
                 'Content-Type': 'text/plain',
-                'Content-Length': message.length
+                'Content-Length': errorMessage.length
             });
-            response.write(message);
+            response.write(errorMessage);
             response.end();
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
@@ -117,20 +119,20 @@ describe('http2-xhr', function () {
                     assert.equal(xhr.statusText, "Service Unavailable");
                     //assert.equal(xhr.getResponseHeader('retry-after'), 5);
                     xhr.onloadend = function () {
-                        assert.equal(xhr.response, message);
+                        assert.equal(xhr.response, errorMessage);
                         done();
                     };
                 };
             };
         };
 
-        xhr.open('GET', 'http://cache-endpoint2/retryAfter', true);
+        xhr.open('GET', 'http://cache-endpoint2' + path, true);
 
         xhr.send(null);
     });
 
     it('does a request and gets a response statusCode 200 with `retry-after` header in seconds and statusCode 503', function (done) {
-        
+        var path = '/retryAfter-' + Date.now();
         var retryAfterDelay = 5;
         var retryAfterDelayMs = retryAfterDelay * 1000;
         var restartDate = (Date.now() + retryAfterDelayMs);
@@ -140,18 +142,18 @@ describe('http2-xhr', function () {
         socketOnRequest = function (request, response) {
             // TODO check request headers and requests responses
             var requestDate = Date.now();
-            assert.equal(request.url, '/retryAfter');
-            
+            assert.equal(request.url, path);
+
             if (requestDate < restartDate) {
-            response.setHeader('retry-after', retryAfterDelay);
-            response.writeHead(503);
-            response.write(errorMessage);
-            response.end(); 
-          } else {
-            response.writeHead(200);
-            response.write(message);
-            response.end(); 
-          }
+                response.setHeader('retry-after', retryAfterDelay);
+                response.writeHead(503);
+                response.write(errorMessage);
+                response.end(); 
+            } else {
+                response.writeHead(200);
+                response.write(message);
+                response.end(); 
+            }
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
@@ -160,7 +162,7 @@ describe('http2-xhr', function () {
             xhr.onprogress = function () {
                 xhr.onload = function () {
                     assert.equal(xhr.status, 200);
-                    assert.equal(xhr.statusText, "Service Unavailable");
+                    assert.equal(xhr.statusText, "OK");
                     xhr.onloadend = function () {
                         assert.equal(xhr.response, message);
                         done();
@@ -169,8 +171,8 @@ describe('http2-xhr', function () {
             };
         };
 
-        xhr.open('GET', 'http://cache-endpoint2/retryAfter', true);
+        xhr.open('GET', 'http://cache-endpoint2' + path, true);
 
         xhr.send(null);
-    });
+    }).timeout(10000);
 });
