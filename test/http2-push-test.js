@@ -237,7 +237,11 @@ describe('http2-push', function () {
             if (xhr.readyState === 4 && xhr.status === 200) {
                 assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
                 assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
+                xhr.abort();
                 done();
+
+                // Prevent future push to call this listeners.
+                xhr.onreadystatechange = null;
             }
         };
         xhr.open('GET', 'http://cache-endpoint1/pushedCacheWhileRevalidatingExpired', true);
