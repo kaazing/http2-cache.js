@@ -194,7 +194,7 @@ describe('http-cache', function () {
         });
     });
 
-    it('Cache match fail when authorization header does not match, unless cache-control: public', function (done) {
+    it('Cache match when authorization header does not match, unless cache-control: public', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/public',
@@ -215,11 +215,11 @@ describe('http-cache', function () {
             cache.match(requestInfo2).then(function (r) {
                 assert.equal(r, response1);
                 done();
+            }).catch(function (err) {
+                console.error(err);
             });
         });
     });
-
-
 
     //this should not work
     it('Cache match fail when authorization header does not match and cache-control is private', function (done) {
@@ -241,8 +241,10 @@ describe('http-cache', function () {
         });
         cache.put(requestInfo1, response1).then(function () {
             cache.match(requestInfo2).then(function (r) {
-                assert.equal(r, response1);
+                assert.equal(r, null);
                 done();
+            }).catch(function (err) {
+                assert.equal(err, null);
             });
         });
     });
@@ -275,6 +277,8 @@ describe('http-cache', function () {
                     cache.match(requestInfo).then(function (r) {
                         assert.equal(r, response1);
                         done();
+                    }).catch(function (err) {
+                        assert.equal(err, null);
                     });
                 });
             });
