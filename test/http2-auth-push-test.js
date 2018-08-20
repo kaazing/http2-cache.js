@@ -188,7 +188,7 @@ describe('http2-auth-push', function () {
                         assert.equal(xhr.statusText, "OK");
                         xhr.onloadend = function () {
                             assert.equal(xhr.response, message);
-                            // done();
+                            done();
                         };
                     };
                 };
