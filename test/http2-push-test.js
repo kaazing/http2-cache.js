@@ -238,7 +238,7 @@ describe('http2-push', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
-    xit('should use extended 304 ETag matched pushed results in cache', function (done) {
+    xit('should use extended 304 Not Modified matched pushed results in cache', function (done) {
         var message = "Affirmative, Dave. I read you. ";
         var date = new Date().toString();
         var xhr = new XMLHttpRequest();
