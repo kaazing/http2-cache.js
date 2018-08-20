@@ -335,7 +335,6 @@ describe('http2-push', function () {
                 assert.equal(xhr.response, message2);
             }
 
-            console.log(xhr.readyState);
             if (xhr.readyState === 4) {
                 assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
                 assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message2.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
