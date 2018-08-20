@@ -175,6 +175,132 @@ describe('http2-push', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
+    xit('should send ETag on request to server after pushed results in cache expired', function (done) {
+        var message = "Affirmative, Dave. I read you. ";
+        var date = new Date().toString();
+        var xhr = new XMLHttpRequest();
+        socketOnRequest = function (request, response) {
+            assert.equal(request.url, '/stream', 'should be on streaming url');
+            var pr = response.push({
+                'path': '/pushedCache1',
+                'protocol': 'http:'
+            });
+            pr.setHeader('Content-Type', 'text/html');
+            pr.setHeader('Content-Length', message.length);
+            pr.setHeader('Cache-Control', 'max-age=500');
+            pr.setHeader('Date', date);
+            pr.write(message);
+            pr.end();
+
+            setTimeout(function () {
+                var pr = response.push({
+                    'path': '/pushedCache1',
+                    'protocol': 'http:'
+                });
+                pr.setHeader('Content-Type', 'text/html');
+                pr.setHeader('Content-Length', message.length);
+                pr.setHeader('Cache-Control', 'max-age=500');
+                pr.setHeader('Date', date);
+                pr.write(message);
+                pr.end();
+            })
+        };
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !=1 is due to bug
+            if(statechanges !== 1) {
+                assert.equal(xhr.readyState, statechanges);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: max-age=500\ndate: ' + date);
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
+
+        // There is a race between xhr.js and push with out subscribe
+        xhr.subscribe(function () {
+            xhr.unsubscribe();
+            xhr.send(null);
+        });
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+    });
+
+    xit('should use extended 304 ETag matched pushed results in cache', function (done) {
+        var message = "Affirmative, Dave. I read you. ";
+        var date = new Date().toString();
+        var xhr = new XMLHttpRequest();
+        socketOnRequest = function (request, response) {
+            assert.equal(request.url, '/stream', 'should be on streaming url');
+            var pr = response.push({
+                'path': '/pushedCache1',
+                'protocol': 'http:'
+            });
+            pr.setHeader('Content-Type', 'text/html');
+            pr.setHeader('Content-Length', message.length);
+            pr.setHeader('Cache-Control', 'max-age=500');
+            pr.setHeader('Date', date);
+            pr.write(message);
+            pr.end();
+
+            setTimeout(function () {
+                var pr = response.push({
+                    'path': '/pushedCache1',
+                    'protocol': 'http:'
+                });
+                pr.setHeader('Content-Type', 'text/html');
+                pr.setHeader('Content-Length', message.length);
+                pr.setHeader('Cache-Control', 'max-age=500');
+                pr.setHeader('Date', date);
+                pr.write(message);
+                pr.end();
+            })
+        };
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !=1 is due to bug
+            if(statechanges !== 1) {
+                assert.equal(xhr.readyState, statechanges);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: max-age=500\ndate: ' + date);
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint1/pushedCache1', true);
+
+        // There is a race between xhr.js and push with out subscribe
+        xhr.subscribe(function () {
+            xhr.unsubscribe();
+            xhr.send(null);
+        });
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+    });
+
     it('should not use pushed results in cache if expired', function (done) {
         var message = "Affirmative, Dave. I read you. While you revalidating.";
         var date = new Date().toString();
