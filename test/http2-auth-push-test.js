@@ -160,7 +160,6 @@ describe('http2-auth-push', function () {
             // pr.write(messages[0]);
             // pr.end();
 
-            // force failure if called again
             socketOnRequest = function (request, response) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, path);
@@ -188,7 +187,7 @@ describe('http2-auth-push', function () {
                         assert.equal(xhr.statusText, "OK");
                         xhr.onloadend = function () {
                             assert.equal(xhr.response, message);
-                            // done();
+                            done();
                         };
                     };
                 };
