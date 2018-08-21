@@ -175,87 +175,7 @@ describe('http2-push', function () {
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
     });
 
-    it('should send ETag on request to server after pushed results in cache expired', function (done) {
-        var message = "Affirmative, Dave. I read you. While you revalidating.";
-        var message2 = "Affirmative, Dave. I read you.";
-        var date = new Date().toString();
-        var xhr = new XMLHttpRequest();
-
-        var requestCount = 0;
-        var socketResponse = null;
-        var responseCacheControl = 'max-age=500';
-        var path = 'pushedCacheEtag';
-        socketOnRequest = function (request, response) {
-            socketResponse = response;
-            requestCount++;
-
-            // Initial request
-            if (requestCount === 1) {
-                assert.equal(request.url, '/stream', 'should be on streaming url');
-                var pr = response.push({
-                    'path': path,
-                    'protocol': 'http:'
-                });
-                pr.setHeader('Content-Type', 'text/html');
-                pr.setHeader('Content-Length', message.length);
-                pr.setHeader('Cache-Control', responseCacheControl);
-                pr.setHeader('Date', date);
-                pr.write(message);
-                pr.end();
-
-            // stale-while-revalidate=0 and max-age=0 so new request incoming
-            } else if (requestCount === 2) {
-                assert.equal(request.url, path, 'should be on streaming url');
-                response.writeHead(304, {
-                    'Cache-Control': responseCacheControl,
-                   'Date': date
-                });
-                response.end();
-                
-            } else {
-                //throw new Error("Should only get 2 request");
-            }
-        };
-
-        var statechanges = 0;
-        xhr.onreadystatechange = function () {
-            ++statechanges;
-            // TODO !=1 is due to bug
-            if(statechanges !== 1) {
-                assert.equal(xhr.readyState, statechanges);
-            }
-            if (xhr.readyState >= 2) {
-                assert.equal(xhr.status, 200);
-                assert.equal(xhr.statusText, "OK");
-            }
-
-            if (xhr.readyState >= 3) {
-                assert.equal(xhr.response, message2);
-            }
-
-            if (xhr.readyState === 4 && xhr.status === 200) {
-                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
-                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message2.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
-                xhr.abort();
-                done();
-
-                // Prevent future push to call this listeners.
-                xhr.onreadystatechange = null;
-            }
-        };
-        xhr.open('GET', 'http://cache-endpoint1' + path, true);
-
-        // There is a race between xhr.js and push with out subscribe
-        xhr.subscribe(function () {
-            setTimeout(function () {
-                xhr.send(null);
-            }, 1000);
-        });
-
-        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
-    }).timeout(5000);
-
-    it('should use extended 304 Not Modified matched pushed results in cache', function (done) {
+    it('should use extended 304 Not Mofified matched pushed results in cache', function (done) {
 
         // From http://www.w3.org/TR/2012/WD-XMLHttpRequest-20121206/
         // For 304 Not Modified responses that are a result of a user agent generated conditional request the 
@@ -313,13 +233,13 @@ describe('http2-push', function () {
                 response.end();
                 
             } else {
-                //throw new Error("Should only get 2 request");
+                throw new Error("Should only get 2 request");
             }
         };
 
         var statechanges = 0;
         xhr.onreadystatechange = function () {
-            console.log(xhr.readyState);
+            
             ++statechanges;
             // TODO !=1 is due to bug
             if(statechanges !== 1) {
@@ -336,8 +256,12 @@ describe('http2-push', function () {
             }
 
             if (xhr.readyState === 4) {
+                
+                // Check that 304 has been sent
+                assert.equal(requestCount, 2);
+
                 assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
-                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\netag: ' + responseETag + '\ncontent-length: ' + message.length + '\ncache-control: ' + responseCacheControl + '\ndate: ' + date);
                 xhr.abort();
                 done();
 
@@ -355,7 +279,7 @@ describe('http2-push', function () {
         });
 
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
-    }).timeout(5000);
+    });
 
     it('should not use pushed results in cache if expired', function (done) {
         var message = "Affirmative, Dave. I read you. While you revalidating.";
