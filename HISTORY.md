@@ -1,6 +1,9 @@
 Version history
 ===============
 
+### 0.2.14 (2018-12-05) 
+* Use http2.js^4.0.5 from npm to fix SETTINGS_MAX_CONCURRENT_STREAMS
+
 ### 0.2.13 (2018-07-18)
 
 * Cancel duplicate push promises streams #111 (via #113)
