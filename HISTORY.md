@@ -11,7 +11,6 @@ Version history
 * Fix bad merge on revalidate Cache
 
 ### 0.2.13 (2018-12-05)
->>>>>>> develop
 
 * Cancel duplicate push promises streams #111 (via #113)
 * Force new authorization value through cache #112 (via #114).
