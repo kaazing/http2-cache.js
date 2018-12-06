@@ -1,6 +1,9 @@
 Version history
 ===============
 
+### 0.2.1x (2018-12-xx)
+* Add Websocket connection support inside Worker thread to accelerate decompresion and free Window Rendering thread.
+
 ### 0.2.15 (2018-12-06)
 * Fix possible cache hit on POST|PUT|DELETE (via #118)
 
