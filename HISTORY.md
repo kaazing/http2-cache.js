@@ -1,6 +1,9 @@
 Version history
 ===============
 
+### 0.2.14 (2018-12-06)
+* Fix bad merge on revalidate Cache
+
 ### 0.2.13 (2018-07-18)
 
 * Cancel duplicate push promises streams #111 (via #113)
