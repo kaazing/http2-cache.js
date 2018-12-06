@@ -13,6 +13,7 @@ var parseCacheControl = require('../lib/cache.js').parseCacheControl,
     RequestInfo = require('../lib/cache.js').RequestInfo,
     satisfiesRequest = require('../lib/cache.js').satisfiesRequest,
     isCacheableResponse = require('../lib/cache.js').isCacheableResponse,
+    isCacheableRequest = require('../lib/cache.js').isCacheableRequest,
     Cache = require('../lib/cache.js').Cache;
 
 describe('http-cache', function () {
@@ -27,6 +28,26 @@ describe('http-cache', function () {
     it('isCacheableResponse(response)', function () {
         assert.equal(isCacheableResponse({'headers': {'cache-control': 'max-age=30'}, 'statusCode': 200}), true);
         assert.equal(isCacheableResponse({'headers': {'cache-control': 'not-one-I-know'}, 'statusCode': 200}), false);
+    });
+
+    it('isCacheableRequest(request)', function () {
+        assert.equal(isCacheableRequest({'method': 'GET'}), true);
+        assert.equal(isCacheableRequest({'method': 'GET'}, {
+            'no-cache': true
+        }), false);
+        assert.equal(isCacheableRequest({'method': 'GET'}, {
+            'no-store': true
+        }), false);
+        assert.equal(isCacheableRequest({'method': 'GET'}, {
+            'no-store': true,
+            'no-cache': true
+        }), false);
+        assert.equal(isCacheableRequest({'method': 'HEAD'}), true);
+        assert.equal(isCacheableRequest({'method': 'CONNECT'}), true);
+        assert.equal(isCacheableRequest({'method': 'TRACE'}), true);
+        assert.equal(isCacheableRequest({'method': 'PUT'}), false);
+        assert.equal(isCacheableRequest({'method': 'POST'}), false);
+        assert.equal(isCacheableRequest({'method': 'DELETE'}), false);
     });
 
     // TODO better testing of max age and stale-while-revalidate
@@ -57,6 +78,66 @@ describe('http-cache', function () {
         cache.put(requestInfo, response1).then(function () {
             cache.match(requestInfo).then(function (r) {
                 assert.equal(r, response1);
+                done();
+            });
+        });
+    });
+
+    it('Cache returns no match for POST', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("POST", "https://example.com/", {});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, null);
+                done();
+            });
+        });
+    });
+
+    it('Cache returns no match for DELETE', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("DELETE", "https://example.com/", {});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, null);
+                done();
+            });
+        });
+    });
+
+    it('Cache returns no match for PUT', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/', 
+            'headers': {
+                'cache-control': 
+                'max-age=30', 
+                'date': new Date()
+            }, 
+            'statusCode': 200
+        };
+        var requestInfo = new RequestInfo("PUT", "https://example.com/", {});
+        cache.put(requestInfo, response1).then(function () {
+            cache.match(requestInfo).then(function (r) {
+                assert.equal(r, null);
                 done();
             });
         });
@@ -187,14 +268,42 @@ describe('http-cache', function () {
             'authorization': 'MyFirstToken'
         });
         cache.put(requestInfo1, response1).then(function () {
-            cache.match(requestInfo2).then(function (r) {
-                assert.equal(r, response1);
-                done();
-            });
+            cache.match(requestInfo2).then(function (response) {
+                assert.equal(response, response1);
+            }).catch(function (err) {
+                assert.equal(err, null);
+            }).then(done);
         });
     });
 
-    it('Cache match fail when authorization header does not match, unless cache-control: public', function (done) {
+    it('Cache does not match when authorization header does not match', function (done) {
+        var cache = new Cache();
+        var response1 = {
+            'href': 'https://example.com/',
+            'headers': {
+                'cache-control': 'max-age=1',
+                'date': new Date()
+            },
+            'statusCode': 200
+        };
+        var requestInfo1 = new RequestInfo("GET", "https://example.com/", {
+            'authorization': 'MyFirstToken'
+        });
+
+        var requestInfo2 = new RequestInfo("GET", "https://example.com/", {
+            'authorization': 'MySecondToken'
+        });
+        cache.put(requestInfo1, response1).then(function () {
+            cache.match(requestInfo2).then(function (response) {
+                assert.equal(response, null);
+            }).catch(function (err) {
+                assert.equal(err, null);
+            }).then(done);
+        });
+    });
+
+
+    it('Cache match when authorization header does not match with cache-control: public', function (done) {
         var cache = new Cache();
         var response1 = {
             'href': 'https://example.com/public',
@@ -212,14 +321,14 @@ describe('http-cache', function () {
             'authorization': 'MySecondToken'
         });
         cache.put(requestInfo1, response1).then(function () {
-            cache.match(requestInfo2).then(function (r) {
-                assert.equal(r, response1);
-                done();
-            });
+            cache.match(requestInfo2).then(function (response) {
+                // Match
+                assert.equal(response, response1);
+            }).catch(function (err) {
+                assert.equal(err, null);
+            }).then(done);
         });
     });
-
-
 
     //this should not work
     it('Cache match fail when authorization header does not match and cache-control is private', function (done) {
@@ -240,10 +349,12 @@ describe('http-cache', function () {
             'authorization': 'MySecondToken'
         });
         cache.put(requestInfo1, response1).then(function () {
-            cache.match(requestInfo2).then(function (r) {
-                assert.equal(r, response1);
-                done();
-            });
+            cache.match(requestInfo2).then(function (response) {
+                // NO match return null
+                assert.equal(response, null);
+            }).catch(function (err) {
+                assert.equal(err, null);
+            }).then(done);
         });
     });
 
@@ -274,8 +385,9 @@ describe('http-cache', function () {
                     // Here is check cache has been clear
                     cache.match(requestInfo).then(function (r) {
                         assert.equal(r, response1);
-                        done();
-                    });
+                    }).catch(function (err) {
+                        assert.equal(err, null);
+                    }).then(done);
                 });
             });
         });
@@ -298,8 +410,9 @@ describe('http-cache', function () {
                 function () {
                     cache.match(requestInfo).then(function (r) {
                         assert.equal(r, null);
-                        done();
-                    });
+                    }).catch(function (err) {
+                        assert.equal(err, null);
+                    }).then(done);
                 }, 1100)
         );
     });
@@ -321,8 +434,9 @@ describe('http-cache', function () {
                 function () {
                     cache.match(requestInfo).then(function (r) {
                         assert.equal(r, response1);
-                        done();
-                    });
+                    }).catch(function (err) {
+                        assert.equal(err, null);
+                    }).then(done);
                 }, 1100)
         );
     });
