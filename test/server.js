@@ -130,86 +130,11 @@ describe('http2-proxy', function () {
         });
     });
 
-    it('proxy() with no arrays throws exception', function () {
-        assert.throws(function () {
-                XMLHttpRequest.proxy("http://url");
-            }
-        );
-    });
-
-    it('proxy() with invalid params throws exception', function () {
-        assert.throws(function () {
-            XMLHttpRequest.proxy([1]);
-        });
-    });
-
     it('should load config and start stream for pushs when h2PushPath is set in config', function (done) {
         socketOnRequest = function (request) {
             assert.equal(request.url, '/stream', 'should be on streaming url');
             done();
         };
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
-    });
-
-    it('should load config 2 and start stream for pushs when h2PushPath is set in config', function (done) {
-        socketOnRequest = function (request) {
-            assert.equal(request.url, '/stream', 'should be on streaming url');
-            done();
-        };
-        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
-    });
-
-    it('should load multiple configs', function (done) {
-        socketOnRequest = function (request) {
-            assert.equal(request.url, '/stream', 'should be on streaming url');
-            done();
-        };
-        socket2OnRequest = function () {
-            throw new Error("should never be here");
-        };
-        XMLHttpRequest.proxy(["http://localhost:7080/config", "http://localhost:7090/config"]);
-    });
-
-    it('should fail to load inline configs without effect on future api usage', function (done) {
-        XMLHttpRequest.proxy(
-            [
-                {
-                    "push": "",
-                    "transport": "",
-                    // TODO why clientLogLevel on NodeJS Cause "Uncaught Error: Should only proxy '/path/proxy' not '/stream'"
-                    //"clientLogLevel": "info",
-                    "proxy": []
-                }
-            ]
-        );
-        done();
-    });
-
-    it('should load inline configs', function (done) {
-        XMLHttpRequest.proxy(
-            [
-                {
-                    'transport': 'ws://localhost:7082/path',
-                    'proxy': [
-                        'http://cache-endpoint2/'
-                    ]
-                }
-            ]
-        );
-        done();
-    });
-
-    it('should expose current configuration', function (done) {
-        socketOnRequest = function (request) {
-            assert.equal(request.url, '/stream', 'should be on streaming url');
-            done();
-        };
-        XMLHttpRequest.configuration.addConfig({
-            'transport': 'ws://localhost:7081/',
-            'push': 'http://cache-endpoint1/stream',
-            'proxy': [
-                'http://cache-endpoint1/'
-            ]
-        });
     });
 });

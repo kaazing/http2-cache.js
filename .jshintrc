@@ -18,7 +18,7 @@
     //
     // @author http://michael.haschke.biz/
     // @license http://unlicense.org/
-
+    "esversion": 6,
     // == Enforcing Options ===============================================
     //
     // These options tell JSHint to be more strict towards your code. Use
@@ -118,13 +118,14 @@
     "indent"        : 4,         // Specify indentation spacing
     "mocha": true,
     "globals": {
-
       "WebSocket": false,
       "Buffer": false,
       "require": false,
       "exports": false,
       "module": false,
-
+      "FormData": true,
+      "XMLHttpRequest": true,
+      "Promise": true,
       "WeakMap": true,
       "Map": true,
       "Set": true

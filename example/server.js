@@ -1,14 +1,19 @@
-var http2 = require('http2');
+/* globals console, process, __dirname */
+var http2 = require('http2.js');
 var fs = require('fs');
 var path = require('path');
 var parseUrl = require('url').parse;
 
 var options = {
-    key: fs.readFileSync('./resources/localhost.key'),
-    cert: fs.readFileSync('./resources/localhost.crt')
+    key: fs.readFileSync(path.join(__dirname, './resources/localhost.key')),
+    cert: fs.readFileSync(path.join(__dirname, './resources/localhost.crt'))
 };
 
 var basePath = ['/native-support.html', 'index.html', '/'];
+
+function getDate() {
+    return new Date();
+}
 
 var tests = [
     {
@@ -138,7 +143,7 @@ var tests = [
                 var testurl = '/' + this.name + id;
                 var cnt = 1;
 
-                function pushPull(push, pushTimeout) {
+                var pushPull = function pushPull(push, pushTimeout) {
                     var body = 'success' + cnt;
                     cnt++;
                     push.writeHead(200,
@@ -162,7 +167,7 @@ var tests = [
                             }
                         }
                     }, pushTimeout);
-                }
+                };
 
                 var body = 'success0';
                 response.writeHead(200,
@@ -180,10 +185,6 @@ var tests = [
         }
     }
 ];
-
-function getDate() {
-    return new Date();
-}
 
 http2.createServer(options, function (request, response) {
     // TODO, SECURITY BUG IN NOT CHECKING USER DATA AND THEN ECHOING, USE ONLY FOR LOCAL TESTING
@@ -214,12 +215,12 @@ http2.createServer(options, function (request, response) {
     } else {
         var pathname = parseUrl(request.url).pathname;
         var success = false;
-        var lengthI = tests.length;
-        for (var i = 0; i < lengthI; i++) {
-            if (pathname.indexOf('/' + tests[i].name) > -1) {
+        var lengthIx = tests.length;
+        for (var ix = 0; ix < lengthIx; ix++) {
+            if (pathname.indexOf('/' + tests[ix].name) > -1) {
                 try {
-                    console.log("Running test logic: " + tests[i].name);
-                    tests[i].run(request, response);
+                    console.log("Running test logic: " + tests[ix].name);
+                    tests[ix].run(request, response);
                     success = true;
                     break;
                 } catch (e) {

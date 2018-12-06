@@ -1,14 +1,39 @@
 {
   "name": "http2-cache",
-  "version": "0.1.0",
+  "version": "0.2.15",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
+  "browser": "dist/http2-cache.js",
+  "overlay": {
+    "browser": {
+      "main": "index.js",
+      "redirects": {
+        "http2-cache": "index.js"
+      }
+    },
+    "node": {
+      "main": "lib/http2-cache.js",
+      "redirects": {
+        "http2-cache": "lib/http2-cache.js"
+      }
+    }
+  },
   "scripts": {
-    "lint": "jshint lib/*.js test/*.js integration-test/*.js",
-    "pretest": "npm run lint",
-    "test": "mocha -t 5000",
-    "build": "npm run test && node postinstall.js",
-    "postinstall": "node postinstall.js"
+    "lint": "jshint .",
+    "test": "mocha --exit",
+    "test:coverage": "istanbul test node_modules/mocha/bin/_mocha -- --reporter spec --slow 500 --timeout 15000 --exit",
+    "test:karma": "karma start --no-auto-watch --single-run",
+    "test:karma-firefox": "karma start --no-auto-watch --single-run --browsers=Firefox",
+    "test:karma-chrome": "karma start --no-auto-watch --single-run --browsers=Chrome",
+    "test:karma-travis": "npm run build:integration && karma start --no-auto-watch --single-run --browsers=Chrome_travis_ci",
+    "test:karma-dev": "karma start --auto-watch --no-single-run --capture",
+    "test:browser": "npm run build:integration && concurrently \"http-server -p 8086\" \"open http://localhost:8086/integration-test/run.html\"",
+    "test:jasmine": "npm run test:browser",
+    "integration": "npm run test:browser",
+    "build": "npm run build:browserify && npm run build:uglify",
+    "build:browserify": "browserify -p [ browserify-banner --template '<%= pkg.name %> v<%= pkg.version %>' ] -r ./lib/http2-cache.js -s http2-cache > ./dist/http2-cache.js",
+    "build:uglify": "uglifyjs --comments '/^/*!/' dist/http2-cache.js -c > ./dist/http2-cache.min.js",
+    "build:integration": "./node_modules/.bin/browserify -r ./test/http-cache-test.js -s tests > ./integration-test/http2-cache-tests.js"
   },
   "repository": {
     "type": "git",
@@ -20,9 +45,17 @@
     "sandbox",
     "push"
   ],
+  "files": [
+    "index.js",
+    "dist/",
+    "lib/"
+  ],
   "exclude": [
+    "coverage",
+    "example",
     "test",
-    "integration-test"
+    "integration-test",
+    "build.js"
   ],
   "author": "dpwspoon",
   "license": "Apache-2.0",
@@ -31,20 +64,36 @@
   },
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
-    "bluebird": "~3.4.x",
-    "browserify": "14.0.0 ",
-    "collections": "~5.0.x",
-    "http2": "^3.3.6",
-    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "collections": "^5.1.1",
+    "http2.js": "^4.0.4",
+    "object-assign": "^4.1.1",
+    "object-keys": "^1.0.11",
+    "string.fromcodepoint": "^0.2.1",
     "websocket-stream": "3.3.3"
   },
+  "browserDependencies": {},
   "devDependencies": {
-    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
-    "jshint": "2.9.4",
-    "xhr2": "0.1.4",
-    "spdy": "3.4.4 ",
-    "sinon": "1.17.7",
+    "browserify": "^14.5.0",
+    "browserify-banner": "^1.0.12",
     "chai": "3.5.0",
-    "mocha": "3.2.0"
+    "concurrently": "^3.5.1",
+    "http-server": "^0.10.0",
+    "istanbul": "^0.4.5",
+    "jshint": "2.9.4",
+    "k3po-mocha.js": "https://github.com/dpwspoon/k3po-mocha.js#develop",
+    "karma": "^1.7.1",
+    "karma-chrome-launcher": "^2.2.0",
+    "karma-coverage": "^1.1.1",
+    "karma-firefox-launcher": "^1.1.0",
+    "karma-mocha": "^1.3.0",
+    "karma-sinon-chai": "^1.3.3",
+    "mocha": "^4.0.1",
+    "npm-k3po": "https://github.com/dpwspoon/npm-k3po#develop",
+    "open": "0.0.5",
+    "sinon": "^4.1.3",
+    "sinon-chai": "^2.14.0",
+    "spdy": "3.4.4 ",
+    "uglify-js": "^3.2.1",
+    "xhr2": "0.1.4"
   }
 }
