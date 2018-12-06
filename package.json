@@ -32,7 +32,7 @@
     "integration": "npm run test:browser",
     "build": "npm run build:browserify && npm run build:uglify",
     "build:browserify": "browserify -p [ browserify-banner --template '<%= pkg.name %> v<%= pkg.version %>' ] -r ./lib/http2-cache.js -s http2-cache > ./dist/http2-cache.js",
-    "build:uglify": "uglifyjs dist/http2-cache.js -c > ./dist/http2-cache.min.js",
+    "build:uglify": "uglifyjs --comments '/^/*!/' dist/http2-cache.js -c > ./dist/http2-cache.min.js",
     "build:integration": "./node_modules/.bin/browserify -r ./test/http-cache-test.js -s tests > ./integration-test/http2-cache-tests.js"
   },
   "repository": {
