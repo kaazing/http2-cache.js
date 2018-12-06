@@ -1,10 +1,13 @@
 Version history
 ===============
 
+### 0.2.15 (2018-12-06)
+* Fix possible cache hit on POST|PUT|DELETE (via #118)
+
 ### 0.2.14 (2018-12-06)
 * Fix bad merge on revalidate Cache
 
-### 0.2.13 (2018-07-18)
+### 0.2.13 (2018-12-05)
 
 * Cancel duplicate push promises streams #111 (via #113)
 * Force new authorization value through cache #112 (via #114).
