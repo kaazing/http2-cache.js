@@ -116,9 +116,10 @@
         //"iLoveDouglas"
     ],
     "indent"        : 4,         // Specify indentation spacing
-    "mocha": true,
     "globals": {
+      //"console": true,
       "WebSocket": false,
+      "WorkerGlobalScope": false,
       "Buffer": false,
       "require": false,
       "exports": false,

@@ -92,12 +92,47 @@ In full
 The integration tests require Java JDK 8 be installed.
 
 ```bash
-npm i
+npm install
 npm run build
 ```
 
+### Browser Compatibility 
+
+| Feature/Browser | Chrome | Firefox | Safari | Internet Explorer |
+|-----------------|--------|---------|--------|-------------------|
+| http2 over ws   | x      | x       | x      | x (IE 10+)        |
+| ws in worker    | x      | x       | x      | x (IE 11+)        |
+| arraybuffer     | x      | x       | x      | x (Edge)          |
+
+### Native Browser Implementations
+
+The example directory contains a simple Web App which tests whether the browser
+supports native HTTP2 push with SPEC compliant caching.
+
+
+Start origin
+```
+http-server -c-1
+```
+
+Start data server
+```
+ node server.js 
+```
+
+Visit page `https://localhost:8080/` (Note: need to trust TLS cert)
+
+
 ### Integration Tests
 
-```bash
-npm run test:browser
+
+Run integration tests on client side:
 ```
+npm run integration
+```
+
+Run client worker integration tests"
+```
+npm run integration:worker
+```
+

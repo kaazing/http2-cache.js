@@ -1,8 +1,7 @@
 /* globals self, importScripts, console, mocha:true */
-
 self.global = self;
 
-delete self['global'];
+delete self.global;
 
 importScripts('../../../node_modules/mocha/mocha.js');
 importScripts('../../../node_modules/chai/chai.js');
@@ -37,7 +36,7 @@ mocha.setup({
   ignoreLeaks: false
 });
 
-importScripts('./http-cache-test.js');
+importScripts('./http2-worker-itest.js');
 
 mocha.run();
 

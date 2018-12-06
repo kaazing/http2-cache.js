@@ -109,6 +109,61 @@ var defaultResponseHeaders = {
 };
 
 
+function generateRandAlphaNumStr(len) {
+    var rdmString = "";
+    while (rdmString.length < len) {
+        rdmString += Math.random().toString(36).substr(2);
+    }
+    return rdmString;
+}
+
+var UTF8_BYTES_REG = /%[89ABab]/g;
+function lengthInUtf8Bytes(str) {
+  // Matches only the 10.. bytes that are non-initial characters in a multi-byte sequence.
+  var m = encodeURIComponent(str).match(UTF8_BYTES_REG);
+  return str.length + (m ? m.length : 0);
+}
+
+
+function sendResponse(request, response, body) {
+    response.writeHead(200, Object.assign({
+        "Content-Type": 'text/plain; charset=utf-8',
+        // TODO 'Content-Length' via lengthInUtf8Bytes ?
+    }, defaultResponseHeaders));
+    var buf = Buffer.from(body, 'utf8');
+    response.write(buf);
+    response.end();
+}
+
+var zlib = require('zlib');
+function sendGzipResponse(request, response, body) {
+
+    var acceptEncoding = request.headers['accept-encoding'];
+    if (!acceptEncoding) {
+        acceptEncoding = '';
+    }
+
+    // Note: this is not a conformant accept-encoding parser.
+    // See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
+    if (acceptEncoding.match(/\bdeflate\b/)) {
+        response.writeHead(200, Object.assign({
+            "Content-Type": 'text/plain; charset=utf-8',
+            "content-encoding": 'deflate'
+        }, defaultResponseHeaders));
+        response.write(Buffer.from(zlib.deflateSync(body)));
+        response.end();
+    } else if (acceptEncoding.match(/\bgzip\b/)) {
+        response.writeHead(200, Object.assign({
+            "Content-Type": 'text/plain; charset=utf-8',
+            "content-encoding": 'gzip'
+        }, defaultResponseHeaders));
+        response.write(Buffer.from(zlib.gzipSync(body)));
+        response.end();
+    } else {
+        send(request, response, body);
+    }
+}
+
 function _getConfigServer(options, onStart) {
 
     return http.createServer(function (request, response) {
@@ -152,13 +207,23 @@ function _getConfigServer(options, onStart) {
                     data: Date.now()
                 }));
             }
+        } else if (path.startsWith("/charof")) {
+            var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192;
+            var charBody = generateRandAlphaNumStr(charSize);
+            var charLength = lengthInUtf8Bytes(charBody);
+            sendResponse(request, response, charBody);
+
+        } else if (path.startsWith("/gzip/charof")) {
+            var charSize = parseInt(request.url.replace("/gzip/charof", ""), 10) || 8192;
+            var charBody = generateRandAlphaNumStr(charSize);
+            var charLength = lengthInUtf8Bytes(charBody);
+            sendGzipResponse(request, response, charBody);
 
         } else {
-            console.warn("Request for unknown path: " + path);
             response.writeHead(404);
             response.end("Not Found");
         }
-    }).listen(options.port, function (){
+    }).listen(options.port, function () {
         console.log("Listening on " + options.port);
         if (typeof onStart === 'function') {
             onStart();
@@ -180,21 +245,6 @@ function unicodeStringToTypedArray(s) {
     return ua;
 }
 
-function generateRandAlphaNumStr(len) {
-    var rdmString = "";
-    while (rdmString.length < len) {
-        rdmString += Math.random().toString(36).substr(2);
-    }
-    return rdmString;
-}
-
-var UTF8_BYTES_REG = /%[89ABab]/g;
-function lengthInUtf8Bytes(str) {
-  // Matches only the 10.. bytes that are non-initial characters in a multi-byte sequence.
-  var m = encodeURIComponent(str).match(UTF8_BYTES_REG);
-  return str.length + (m ? m.length : 0);
-}
-
 function getConfigServer(options, onStart) {
     if (
         typeof window !== 'undefined' || 
@@ -205,6 +255,7 @@ function getConfigServer(options, onStart) {
         return _getConfigServer(options, onStart);
     }
 }
+
 
 function getSocketServer(options, onRequest, onStart) {
     if (
@@ -217,10 +268,33 @@ function getSocketServer(options, onRequest, onStart) {
     }
 }
 
+function getSocketTestServer(options, onStart) {
+    return getSocketServer(options, function (request, response) {
+
+        if (request.url.startsWith("/charof")) {
+            var charSize = parseInt(request.url.replace("/charof", ""), 10) || 8192,
+                charBody = generateRandAlphaNumStr(charSize),
+                charLength = lengthInUtf8Bytes(charBody);
+            sendResponse(request, response, charBody);
+        } else if (request.url.startsWith("/gzip/charof")) {
+            var charGzipSize = parseInt(request.url.replace("/charof", ""), 10) || 8192,
+                charGzipBody = generateRandAlphaNumStr(charGzipSize);
+            //send(request, response, charBody);
+            sendGzipResponse(request, response, charGzipBody);
+        } else {
+            response.writeHead(404);
+            response.end("Not Found");
+        }
+    }, onStart);
+}
+
 module.exports = {
+    sendResponse: sendResponse,
+    sendGzipResponse: sendGzipResponse,
     generateRandAlphaNumStr: generateRandAlphaNumStr,
     lengthInUtf8Bytes: lengthInUtf8Bytes,
     unicodeStringToTypedArray: unicodeStringToTypedArray,
     getConfigServer: getConfigServer,
+    getSocketTestServer: getSocketTestServer,
     getSocketServer: getSocketServer
 };
