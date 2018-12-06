@@ -7,7 +7,7 @@ if (typeof XMLHttpRequest === 'undefined') {
     XMLHttpRequest = require("xhr2").XMLHttpRequest;   
 }
 /* jshint ignore:end */
-
+require("../lib/http2-cache");
 
 var FormData = require("../lib/form-data").FormData,
     InvalidStateError = require('../lib/errors.js').InvalidStateError,
@@ -47,7 +47,7 @@ describe('http2-xhr', function () {
         socketOnRequest = function (request, response) {
             throw new Error("socketOnRequest Unexpected request: " + request.url);
         };
-
+        
         // start config http2 server
         socket = getSocketServer({
             port: 7081

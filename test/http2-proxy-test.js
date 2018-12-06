@@ -93,7 +93,7 @@ describe('http2-proxy', function () {
                 done();
             }
         }
-
+        
         // start config http2 server
         socket = getSocketServer({
             port: 7081
