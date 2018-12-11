@@ -1,6 +1,9 @@
 Version history
 ===============
 
+### 0.2.16 (2018-12-xx) 
+* Use http2.js^4.0.5 from npm to fix SETTINGS_MAX_CONCURRENT_STREAMS
+
 ### 0.2.15 (2018-12-06)
 * Fix possible cache hit on POST|PUT|DELETE (via #118)
 
