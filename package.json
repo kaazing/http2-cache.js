@@ -65,7 +65,7 @@
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
     "collections": "^5.1.1",
-    "http2.js": "kaazing/http2.js#features/SETTINGS_MAX_CONCURRENT_STREAMS",
+    "http2.js": "^4.0.5",
     "object-assign": "^4.1.1",
     "object-keys": "^1.0.11",
     "string.fromcodepoint": "^0.2.1",
