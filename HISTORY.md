@@ -1,6 +1,9 @@
 Version history
 ===============
 
+### 0.2.18 (2018-12-11) 
+* Use http2.js^4.0.6 from npm to fix SETTINGS_MAX_CONCURRENT_STREAMS
+
 ### 0.2.16 (2018-12-11) 
 * Use http2.js^4.0.5 from npm to fix SETTINGS_MAX_CONCURRENT_STREAMS
 
