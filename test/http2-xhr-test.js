@@ -4,7 +4,7 @@ var assert = chai.assert;
 
 /* jshint ignore:start */
 if (typeof XMLHttpRequest === 'undefined') {
-    XMLHttpRequest = require("xhr2").XMLHttpRequest;   
+    XMLHttpRequest = require("xhr2").XMLHttpRequest;
 }
 /* jshint ignore:end */
 
@@ -99,6 +99,51 @@ describe('http2-xhr', function () {
             }
         };
         xhr.open('GET', 'http://cache-endpoint2/path', true);
+
+        xhr.send(null);
+
+    });
+
+    it('should receive trailer headers', function (done) {
+        var message = "Hello, Akram. You're looking well today.";
+        var date =  new Date().toString();
+        var responseTrailers = { 'etag': '123123' };
+        socketOnRequest = function (request, response) {
+            // TODO check request headers and requests responses
+            assert.equal(request.url, '/trailers');
+            response.setHeader('Content-Type', 'text/html');
+            response.setHeader('Content-Length', message.length);
+            response.setHeader('Cache-Control', 'private, max-age=0');
+            response.setHeader('date', date);
+            response.write(message);
+            response.addTrailers(responseTrailers);
+            response.end();
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var xhr = new XMLHttpRequest();
+
+        var statechanges = 0;
+        xhr.onreadystatechange = function () {
+            ++statechanges;
+            // TODO !==1 is due to bug
+            if(statechanges !== 1){
+                assert.equal(statechanges, xhr.readyState);
+            }
+            if (xhr.readyState >= 2) {
+                assert.equal(xhr.status, 200);
+                assert.equal(xhr.statusText, "OK");
+            }
+
+            if (xhr.readyState >= 3) {
+                assert.equal(xhr.response, message);
+            }
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: private, max-age=0\ndate: ' + date + '\netag: 123123');
+                done();
+            }
+        };
+        xhr.open('GET', 'http://cache-endpoint2/trailers', true);
 
         xhr.send(null);
 
