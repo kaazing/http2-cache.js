@@ -138,7 +138,7 @@ describe('http2-xhr', function () {
                 assert.equal(xhr.response, message);
             }
             if (xhr.readyState === 4 && xhr.status === 200) {
-                assert.equal(xhr.getResponseHeader('content-type'), 'text/html');
+                assert.equal(xhr.getResponseHeader('etag'), '123123');
                 assert.equal(xhr.getAllResponseHeaders(), 'content-type: text/html\ncontent-length: ' + message.length + '\ncache-control: private, max-age=0\ndate: ' + date + '\netag: 123123');
                 done();
             }

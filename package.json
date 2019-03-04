@@ -66,6 +66,7 @@
   "dependencies": {
     "collections": "^5.1.1",
     "http2.js": "^4.0.6",
+    "lodash.merge": "^4.6.1",
     "object-assign": "^4.1.1",
     "object-keys": "^1.0.11",
     "string.fromcodepoint": "^0.2.1",
