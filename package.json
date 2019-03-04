@@ -1,6 +1,6 @@
 {
   "name": "http2-cache",
-  "version": "0.2.12",
+  "version": "0.2.18",
   "description": "Exposes http caching to the browser by adding functionality to XMLHttpRequest, and then running XMLHttpRequest over http2 over WebSockets",
   "main": "index.js",
   "browser": "dist/http2-cache.js",
@@ -31,8 +31,8 @@
     "test:jasmine": "npm run test:browser",
     "integration": "npm run test:browser",
     "build": "npm run build:browserify && npm run build:uglify",
-    "build:browserify": "browserify -r ./lib/http2-cache.js -s http2-cache > ./dist/http2-cache.js",
-    "build:uglify": "uglifyjs dist/http2-cache.js -c > ./dist/http2-cache.min.js",
+    "build:browserify": "browserify -p [ browserify-banner --template '<%= pkg.name %> v<%= pkg.version %>' ] -r ./lib/http2-cache.js -s http2-cache > ./dist/http2-cache.js",
+    "build:uglify": "uglifyjs --comments '/^/*!/' dist/http2-cache.js -c > ./dist/http2-cache.min.js",
     "build:integration": "./node_modules/.bin/browserify -r ./test/http-cache-test.js -s tests > ./integration-test/http2-cache-tests.js"
   },
   "repository": {
@@ -65,7 +65,7 @@
   "homepage": "https://github.com/kaazing/http2-cache.js#readme",
   "dependencies": {
     "collections": "^5.1.1",
-    "http2.js": "^4.0.4",
+    "http2.js": "^4.0.6",
     "object-assign": "^4.1.1",
     "object-keys": "^1.0.11",
     "string.fromcodepoint": "^0.2.1",
@@ -74,6 +74,7 @@
   "browserDependencies": {},
   "devDependencies": {
     "browserify": "^14.5.0",
+    "browserify-banner": "^1.0.12",
     "chai": "3.5.0",
     "concurrently": "^3.5.1",
     "http-server": "^0.10.0",
