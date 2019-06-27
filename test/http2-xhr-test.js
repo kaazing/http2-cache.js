@@ -845,6 +845,7 @@ describe('http2-xhr', function () {
         });
     });
 
+    /* Ignoring the test since we removed the code where we are throwing an exception
     it('should return Throw InvalidStateError when responseText is used with invalid responseType', function (done) {
         
         var message = '{"message": "Hello, Dave. You\'re looking well today."}';
@@ -887,6 +888,7 @@ describe('http2-xhr', function () {
         xhr.responseType = 'json';
         xhr.send(null);
     });
+    */
 
     it('should return responseType when NOT proxyfied', function (done) {
 
