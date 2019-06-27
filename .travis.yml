@@ -9,7 +9,7 @@ env:
   - COMMAND=test
   - COMMAND=build
   - COMMAND=build:integration
-  - COMMAND=test:karma-travis
+  #- COMMAND=test:karma-travis
 before_install:
   - "npm set legacy-bundling=true"
   - export CHROME_BIN=chromium-browser
