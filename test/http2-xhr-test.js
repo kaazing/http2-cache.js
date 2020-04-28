@@ -74,6 +74,7 @@ describe('http2-xhr', function () {
             response.write(message);
             response.end();
         };
+
         XMLHttpRequest.proxy(["http://localhost:7080/config"]);
         var xhr = new XMLHttpRequest();
 
@@ -98,8 +99,8 @@ describe('http2-xhr', function () {
                 done();
             }
         };
-        xhr.open('GET', 'http://cache-endpoint2/path', true);
 
+        xhr.open('GET', 'http://cache-endpoint2/path', true);
         xhr.send(null);
 
     });
@@ -688,6 +689,84 @@ describe('http2-xhr', function () {
         };
 
         firstRequest.open('GET', 'http://cache-endpoint2:80/cachedGetRequestWithPort', true);
+
+        firstRequest.send(null);
+    });
+
+    it('should allow reuse of XMLHttpRequest for different url', function (done) {
+        var messages = [
+            "Hello, Dave. You're looking well today.",
+            "Do you want to be my friend, Dave ?"
+        ];
+        var requestCount = 0;
+        socketOnRequest = function (request, response) {
+            requestCount++;
+            if (requestCount === 1) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/reuseXMLHttpRequest1');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', messages[0].length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(messages[0]);
+                response.end();
+            } else  if (requestCount === 2) {
+                // TODO check request headers and requests responses
+                assert.equal(request.url, '/reuseXMLHttpRequest2');
+                response.setHeader('Content-Type', 'text/html');
+                response.setHeader('Content-Length', messages[1].length);
+                response.setHeader('Cache-Control', 'private, max-age=5');
+                response.write(messages[1]);
+                response.end();
+            } else {
+                throw new Error("Should only get 2 request");
+            }
+        };
+        XMLHttpRequest.proxy(["http://localhost:7080/config"]);
+        var firstRequest = new XMLHttpRequest();
+
+        var statechanges = 0;
+        firstRequest.onreadystatechange = function () {
+            ++statechanges;
+            if(statechanges !== 1) {
+                assert.equal(statechanges, firstRequest.readyState);
+            }
+            if (firstRequest.readyState >= 2) {
+                assert.equal(firstRequest.status, 200);
+                assert.equal(firstRequest.statusText, "OK");
+            }
+            if (firstRequest.readyState >= 3) {
+                assert.equal(firstRequest.response, messages[0]);
+            }
+            if (firstRequest.readyState === 4 && firstRequest.status === 200) {
+                assert.equal(firstRequest.response, messages[0]);
+
+                var secondRequest = firstRequest;
+                var statechangesocket = 0;
+                secondRequest.onreadystatechange = function () {
+                    ++statechangesocket;
+                    // TODO !==1 is due to bug
+                    if(statechangesocket !== 1) {
+                        assert.equal(statechangesocket, secondRequest.readyState);
+                    }
+                    if (secondRequest.readyState >= 2) {
+                        assert.equal(secondRequest.status, 200);
+                        assert.equal(secondRequest.statusText, "OK");
+                    }
+                    if (secondRequest.readyState >= 3) {
+                        assert.equal(secondRequest.response, messages[1]);
+                    }
+                    if (secondRequest.readyState === 4 && secondRequest.status === 200) {
+                        assert.equal(secondRequest.response, messages[1]);
+                        done();
+                    }
+                };
+
+                secondRequest.open('GET', 'http://cache-endpoint2:80/reuseXMLHttpRequest2', true);
+                secondRequest.send(null);
+            }
+        };
+
+        firstRequest.open('GET', 'http://cache-endpoint2:80/reuseXMLHttpRequest1', true);
 
         firstRequest.send(null);
     });

@@ -585,12 +585,14 @@ describe('http2-push', function () {
         ];
         var requestCount = 0;
         socketOnRequest = function (request, response) {
+            var pr;
+
             requestCount++;
             if (requestCount === 1) {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/stream');
 
-                var pr = response.push({
+                pr = response.push({
                     'path': '/cachedGetRequestAfterFailure',
                     'protocol': 'http:'
                 });
@@ -619,7 +621,6 @@ describe('http2-push', function () {
                 // TODO check request headers and requests responses
                 assert.equal(request.url, '/cachedGetRequestAfterFailure');
                 
-
                 var pr2 = response.push({
                     'path': '/cachedGetRequestAfterFailure',
                     'protocol': 'http:'
